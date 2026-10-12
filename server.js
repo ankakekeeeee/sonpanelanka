@@ -10,7 +10,7 @@ app.use(bodyParser.json());
 
 // Her yeni dosya teslim edildiğinde bu tarihi değiştiriyoruz. Sitenin en altında küçük yazıyla görünür -
 // Render'a yüklediğin sürümün gerçekten güncellenip güncellenmediğini buradan kontrol edebilirsin.
-const APP_VERSION = '2026-10-11-10';
+const APP_VERSION = '2026-10-11-11';
 
 // ====== AYARLAR (Render > Environment bölümünden de girilebilir) ======
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8950975662:AAGVS-pPNJYWpxYjSLyJIXTEDBn0mD5y8XY';
@@ -215,6 +215,45 @@ const SERVICE_INFO = {
     tg: { name: 'Telegram', icon: 'fa-telegram', bg: 'bg-blue-500/10', color: 'text-blue-400' }
 };
 
+// ====== SMM KATALOĞU (Instagram takipçi/beğeni vb.) ======
+// Numara satışından FARKLI: sabit fiyat yok, müşteri link + miktar giriyor, fiyat = (pricePerThousand/1000)*miktar.
+// serviceId/pricePerThousand/min/max admin panelden ayarlanır (db.smmConfig) - admin ayarlamadan ürün müşteriye görünmez.
+const SMM_CATALOG = [
+    { id: 'ig_followers', name: 'Instagram Takipçi', icon: 'fa-user-plus', iconSet: 'fa-solid', bg: 'bg-pink-500/10', color: 'text-pink-400', linkLabel: 'Profil linki (örn: https://instagram.com/kullaniciadi)' },
+    { id: 'ig_likes', name: 'Instagram Beğeni', icon: 'fa-heart', iconSet: 'fa-solid', bg: 'bg-pink-500/10', color: 'text-pink-400', linkLabel: 'Gönderi linki (örn: https://instagram.com/p/xxxxx)' }
+];
+
+// ====== ELDEN SATIŞ KATALOĞU (Instagram/TikTok/Telegram takipçi-beğeni-abone) ======
+// Bunlar panel bakiyesinden OTOMATİK satın alınmaz - sadece fiyat listesi olarak gösterilir, müşteri
+// Telegram'dan admine (ADMIN_TELEGRAM_USERNAME) yazıp elden satın alır. Hiçbir sağlayıcı API'sine bağlı değil.
+const MANUAL_SOCIAL_CATALOG = [
+    { category: 'Instagram Takipçi', icon: 'fa-instagram', iconSet: 'fa-brands', bg: 'bg-pink-500/10', color: 'text-pink-400', packages: [
+        { label: '50 Takipçi', price: 60 },
+        { label: '100 Takipçi', price: 100 },
+        { label: '250 Takipçi', price: 200 },
+        { label: '500 Takipçi', price: 420 },
+        { label: '1000 Takipçi', price: 700 }
+    ]},
+    { category: 'Instagram Beğeni', icon: 'fa-instagram', iconSet: 'fa-brands', bg: 'bg-pink-500/10', color: 'text-pink-400', packages: [
+        { label: '50 Beğeni', price: 25 },
+        { label: '250 Beğeni', price: 100 },
+        { label: '1000 Beğeni', price: 250 },
+        { label: '5000 Beğeni', price: 900 }
+    ]},
+    { category: 'TikTok Takipçi', icon: 'fa-tiktok', iconSet: 'fa-brands', bg: 'bg-slate-500/10', color: 'text-slate-200', packages: [
+        { label: '50 Takipçi', price: 80 },
+        { label: '250 Takipçi', price: 300 },
+        { label: '1000 Takipçi', price: 900 }
+    ]},
+    { category: 'Telegram Kanal/Grup Abonesi', icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400', packages: [
+        { label: '100 Abone', price: 60 },
+        { label: '250 Abone', price: 120 },
+        { label: '500 Abone', price: 220 },
+        { label: '1000 Abone', price: 400 },
+        { label: '2500 Abone', price: 900 }
+    ]}
+];
+
 // ====== Sağlayıcının TÜM servis kodu/isim listesi (isimden kod bulmak için) - 1 saatte bir yenile ======
 let servicesListCache = { time: 0, byCode: {} };
 async function resolveServicesList() {
@@ -374,6 +413,21 @@ app.get('/api/getServices', (req, res) => {
     res.json({ success: true, services: list });
 });
 
+// Sadece admin panelden serviceId + fiyat ayarlanmış SMM ürünleri müşteriye görünür (ayarlanmamışsa listeye girmez)
+app.get('/api/getSmmServices', (req, res) => {
+    const list = SMM_CATALOG.filter(item => db.smmConfig[item.id] && db.smmConfig[item.id].serviceId && db.smmConfig[item.id].pricePerThousand)
+        .map(item => {
+            const cfg = db.smmConfig[item.id];
+            return { id: item.id, name: item.name, icon: item.icon, iconSet: item.iconSet, bg: item.bg, color: item.color, linkLabel: item.linkLabel, pricePerThousand: cfg.pricePerThousand, min: cfg.min || 100, max: cfg.max || 10000 };
+        });
+    res.json({ success: true, services: list });
+});
+
+// Elden satış fiyat listesi - sadece gösterim, satın alma linki Telegram'a (admine) gider.
+app.get('/api/getManualServices', (req, res) => {
+    res.json({ success: true, categories: MANUAL_SOCIAL_CATALOG, contact: ADMIN_TELEGRAM_USERNAME });
+});
+
 app.get('/api/getCustomerBalance', (req, res) => {
     const { username } = req.query;
     if (db.users[username]) {
@@ -445,8 +499,10 @@ app.get('/api/admin/getData', (req, res) => {
     const supportChats = Object.keys(db.support).map(u => ({ username: u, last: db.support[u][db.support[u].length - 1], count: db.support[u].length })).sort((a, b) => (b.last ? b.last.ts : 0) - (a.last ? a.last.ts : 0));
     const catalogList = CATALOG.map(c => ({ id: c.id, name: c.name }));
     const visitorList = db.visitors.slice(0, 100);
+    const smmOrders = Object.values(db.smmOrders).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 100);
+    const smmConfig = SMM_CATALOG.map(c => Object.assign({ id: c.id, name: c.name }, db.smmConfig[c.id] || {}));
 
-    res.json({ success: true, users, payments, logins, orders, supportChats, visitors: db.visitors.length, visitorList, catalog: catalogList });
+    res.json({ success: true, users, payments, logins, orders, supportChats, visitors: db.visitors.length, visitorList, catalog: catalogList, smmOrders, smmConfig });
 });
 
 app.post('/api/admin/processPayment', (req, res) => {
@@ -546,6 +602,57 @@ app.get('/api/admin/serviceCodes', async (req, res) => {
         list.push({ id: item.id, name: item.name, code, confirmed: !!(serviceCodeCache[item.id] && serviceCodeCache[item.id].confirmed), override: serviceOverrides[item.id] || '' });
     }
     res.json({ success: true, list });
+});
+
+// ====== SMM (Instagram vb.) ADMIN AYARLARI ======
+// Admin'in bir SMM ürününe (ig_followers, ig_likes) sağlayıcı service ID'si ve satış fiyatını atamasını sağlar.
+app.post('/api/admin/setSmmConfig', (req, res) => {
+    const { adminToken, itemId, serviceId, pricePerThousand, min, max } = req.body;
+    if (!checkAdminToken(adminToken)) return res.status(403).json({ success: false, message: "Yetkisiz." });
+    const item = SMM_CATALOG.find(c => c.id === itemId);
+    if (!item) return res.json({ success: false, message: "Ürün bulunamadı." });
+    const price = Number(pricePerThousand);
+    if (!serviceId || !String(serviceId).trim()) return res.json({ success: false, message: "Service ID gerekli." });
+    if (!price || price <= 0) return res.json({ success: false, message: "Geçerli bir fiyat gir (1000 adet için TL)." });
+    db.smmConfig[itemId] = {
+        serviceId: String(serviceId).trim(),
+        pricePerThousand: price,
+        min: Number(min) || 100,
+        max: Number(max) || 10000
+    };
+    persist();
+    res.json({ success: true, message: item.name + " ayarlandı. Artık müşterilere görünür.", config: db.smmConfig[itemId] });
+});
+
+// Admin'in sağlayıcının CANLI servis listesinde arama yapıp doğru service ID'yi bulmasını sağlar
+// (örn. "instagram takip" yazınca sadece eşleşen servisleri döner - tüm liste binlerce satır olabiliyor).
+app.get('/api/admin/smmLiveServices', async (req, res) => {
+    if (!checkAdminToken(req.query.adminToken)) return res.status(403).json({ success: false, message: "Yetkisiz." });
+    if (!SMM_API_KEY) return res.json({ success: false, message: "SMM_API_KEY ayarlanmamış (Render > Environment)." });
+    try {
+        const resp = await smmPost({ action: 'services' }, 25000);
+        const all = Array.isArray(resp.data) ? resp.data : [];
+        const q = (req.query.q || '').toLowerCase();
+        const filtered = (q ? all.filter(s => (String(s.name || '') + ' ' + String(s.category || '')).toLowerCase().includes(q)) : all).slice(0, 60);
+        res.json({ success: true, count: all.length, list: filtered.map(s => ({ service: s.service, name: s.name, category: s.category, rate: s.rate, min: s.min, max: s.max })) });
+    } catch (e) {
+        res.json({ success: false, message: "Sağlayıcı bağlantı hatası: " + e.message });
+    }
+});
+
+// Belirli bir SMM siparişinin güncel durumunu sağlayıcıdan çeker (admin panelden elle yenilenir)
+app.get('/api/admin/smmOrderStatus', async (req, res) => {
+    if (!checkAdminToken(req.query.adminToken)) return res.status(403).json({ success: false, message: "Yetkisiz." });
+    const order = db.smmOrders[req.query.orderId];
+    if (!order) return res.json({ success: false, message: "Sipariş bulunamadı." });
+    try {
+        const resp = await smmPost({ action: 'status', order: order.providerOrderId }, 20000);
+        const d = resp.data || {};
+        if (d.status) { order.status = d.status; persist(); }
+        res.json({ success: true, status: d.status || order.status, remains: d.remains, start_count: d.start_count, charge: d.charge });
+    } catch (e) {
+        res.json({ success: false, message: "Sağlayıcı bağlantı hatası: " + e.message });
+    }
 });
 
 // ====== CANLI DESTEK ======
@@ -717,6 +824,54 @@ app.post('/api/buyNumber', async (req, res) => {
         console.error("API Bağlantı Hatası:", error.message);
         return res.json({ success: false, message: showDetail ? ("Sağlayıcı bağlantı hatası: " + error.message) : "Bağlantı hatası, lütfen tekrar deneyin." });
     }
+});
+
+// ====== SMM SİPARİŞ (Instagram takipçi/beğeni vb.) ======
+app.post('/api/buySmm', async (req, res) => {
+    const { productId, username, link, quantity } = req.body;
+    const userObj = db.users[username];
+    if (!userObj) return res.json({ success: false, message: "Kullanıcı bulunamadı." });
+    if (userObj.banned) return res.json({ success: false, message: "Hesabınız yasaklandı, satın alma yapamazsınız." });
+
+    const item = SMM_CATALOG.find(c => c.id === productId);
+    const cfg = item && db.smmConfig[productId];
+    if (!item || !cfg || !cfg.serviceId || !cfg.pricePerThousand) return res.json({ success: false, message: "Geçersiz ürün." });
+
+    const qty = parseInt(quantity, 10);
+    const min = cfg.min || 100, max = cfg.max || 10000;
+    if (!link || !String(link).trim()) return res.json({ success: false, message: "Lütfen link girin." });
+    if (!qty || qty < min || qty > max) return res.json({ success: false, message: "Miktar " + min + " ile " + max + " arasında olmalı." });
+
+    const price = Math.round((cfg.pricePerThousand / 1000) * qty * 100) / 100;
+    if (userObj.balance < price) return res.json({ success: false, message: "Yetersiz bakiye! Lütfen bakiye yükleyin." });
+
+    try {
+        const resp = await smmPost({ action: 'add', service: cfg.serviceId, link: String(link).trim(), quantity: qty }, 20000);
+        const data = resp.data;
+        if (!data || data.error || !data.order) {
+            const errMsg = (data && data.error) ? data.error : 'Sağlayıcı siparişi reddetti.';
+            return res.json({ success: false, message: userObj.role === 'admin' ? ("Sağlayıcı hatası: " + errMsg) : "Şu an bu hizmet alınamıyor, lütfen daha sonra tekrar deneyin." });
+        }
+        userObj.balance -= price;
+        const orderId = 'smm_' + Date.now();
+        db.smmOrders[orderId] = {
+            id: orderId, username, itemId: productId, itemName: item.name, link: String(link).trim(), quantity: qty,
+            price, providerOrderId: data.order, status: 'İşleme Alındı',
+            time: new Date().toLocaleString('tr-TR'), createdAt: Date.now()
+        };
+        persist();
+        res.json({ success: true, message: item.name + " siparişi alındı. Sipariş sağlayıcıya iletildi.", order: db.smmOrders[orderId] });
+    } catch (error) {
+        console.error("SMM API hatası:", error.message);
+        res.json({ success: false, message: userObj.role === 'admin' ? ("SMM sağlayıcı bağlantı hatası: " + error.message) : "Bağlantı hatası, lütfen tekrar deneyin." });
+    }
+});
+
+app.get('/api/mySmmOrders', (req, res) => {
+    const { username } = req.query;
+    if (!db.users[username]) return res.json({ success: false, orders: [] });
+    const list = Object.values(db.smmOrders).filter(o => o.username === username).sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
+    res.json({ success: true, orders: list });
 });
 
 // ====== SİPARİŞLERİM (sayfa yenilenince numaralar kaybolmasın) ======
@@ -1131,6 +1286,8 @@ app.get('/', (req, res) => {
                 if (currentUser) {
                     buildMain();
                     loadServices();
+                    loadSmmServices();
+                    loadManualServices();
                     restoreOrders();
                 }
             }
@@ -1175,6 +1332,8 @@ app.get('/', (req, res) => {
                 document.getElementById('mainContent').innerHTML =
                     '<div id="servicesGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"><p class="text-slate-400 text-sm">Yükleniyor...</p></div>' +
                     '<div class="mt-6 flex justify-end"><button onclick="openDeposit()" class="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-bold text-sm"><i class="fa-solid fa-wallet mr-2"></i> Bakiye Yükle</button></div>' +
+                    '<div id="smmSection" class="mt-8"></div>' +
+                    '<div id="manualSection" class="mt-8"></div>' +
                     '<div id="activeOrderArea" class="mt-8"></div>';
             }
 
@@ -1205,6 +1364,77 @@ app.get('/', (req, res) => {
                     '</div>' +
                     '<button data-id="' + s.id + '" onclick="buyNumber(this)" class="shineBtn bg-emerald-600 hover:bg-emerald-500 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg transition shrink-0">Numara Al</button>' +
                     '</div>';
+            }
+
+            async function loadSmmServices() {
+                var box = document.getElementById('smmSection');
+                if (!box) return;
+                try {
+                    var res = await fetch('/api/getSmmServices');
+                    var data = await res.json();
+                    if (!data.success || !data.services.length) { box.innerHTML = ''; return; }
+                    box.innerHTML = '<h2 class="text-sm font-bold text-pink-300 mb-3 flex items-center gap-2"><i class="fa-brands fa-instagram"></i> Instagram Hizmetleri</h2>' +
+                        '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">' + data.services.map(renderSmmCard).join('') + '</div>';
+                } catch (e) { box.innerHTML = ''; }
+            }
+
+            // Elden satış: fiyatlar gösterilir, bakiyeden düşülmez - satın almak için Telegram'a yönlendirir.
+            async function loadManualServices() {
+                var box = document.getElementById('manualSection');
+                if (!box) return;
+                try {
+                    var res = await fetch('/api/getManualServices');
+                    var data = await res.json();
+                    if (!data.success || !data.categories.length) { box.innerHTML = ''; return; }
+                    var tgUrl = 'https://t.me/' + data.contact;
+                    box.innerHTML = '<h2 class="text-sm font-bold text-violet-300 mb-1 flex items-center gap-2"><i class="fa-solid fa-crown"></i> Instagram / TikTok / Telegram Takipçi &amp; Beğeni</h2>' +
+                        '<p class="text-[11px] text-slate-500 mb-3">Bu hizmetler panel bakiyesinden otomatik alınmaz - fiyatı seç, Telegram üzerinden bizimle iletişime geç.</p>' +
+                        '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">' + data.categories.map(function (cat) {
+                            return '<div class="prodCard bg-black/40 border border-violet-500/15 p-5 rounded-2xl shadow-xl transition">' +
+                                '<div class="flex items-center gap-3 mb-3">' +
+                                '<div class="' + cat.bg + ' ' + cat.color + ' prodIcon w-11 h-11 rounded-xl flex items-center justify-center text-lg border border-violet-500/15 shrink-0"><i class="' + cat.iconSet + ' ' + cat.icon + '"></i></div>' +
+                                '<h3 class="font-bold text-sm text-white">' + cat.category + '</h3>' +
+                                '</div>' +
+                                '<div class="space-y-1.5">' + cat.packages.map(function (p) {
+                                    return '<div class="flex justify-between items-center bg-black/30 rounded-lg px-3 py-1.5 text-xs"><span class="text-slate-300">' + p.label + '</span><span class="text-violet-300 font-bold">' + p.price.toFixed(2) + ' TL</span></div>';
+                                }).join('') + '</div>' +
+                                '<a href="' + tgUrl + '" target="_blank" class="shineBtn mt-3 block text-center bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl text-xs font-bold shadow-lg transition">Telegram ile Satın Al</a>' +
+                                '</div>';
+                        }).join('') + '</div>';
+                } catch (e) { box.innerHTML = ''; }
+            }
+
+            function renderSmmCard(s) {
+                return '<div class="prodCard bg-black/40 border border-pink-500/15 p-5 rounded-2xl shadow-xl transition">' +
+                    '<div class="flex items-center gap-3 mb-3">' +
+                    '<div class="' + s.bg + ' ' + s.color + ' prodIcon w-11 h-11 rounded-xl flex items-center justify-center text-lg border border-pink-500/15 shrink-0"><i class="' + (s.iconSet || 'fa-solid') + ' ' + s.icon + '"></i></div>' +
+                    '<div class="min-w-0"><h3 class="font-bold text-sm text-white truncate">' + s.name + '</h3>' +
+                    '<p class="text-pink-300 font-bold text-xs">1000 adet: ' + s.pricePerThousand.toFixed(2) + ' TL</p></div>' +
+                    '</div>' +
+                    '<input id="smmLink_' + s.id + '" placeholder="' + s.linkLabel + '" class="w-full bg-black/40 border border-emerald-500/20 rounded-lg px-3 py-2 text-xs text-white mb-2">' +
+                    '<div class="flex gap-2 items-center">' +
+                    '<input id="smmQty_' + s.id + '" type="number" min="' + s.min + '" max="' + s.max + '" placeholder="Miktar (' + s.min + '-' + s.max + ')" oninput="updateSmmPrice(\\'' + s.id + '\\',' + s.pricePerThousand + ')" class="flex-1 bg-black/40 border border-emerald-500/20 rounded-lg px-3 py-2 text-xs text-white">' +
+                    '<button onclick="buySmm(\\'' + s.id + '\\')" class="shineBtn bg-pink-600 hover:bg-pink-500 px-4 py-2 rounded-xl text-xs font-bold shadow-lg transition shrink-0">Sipariş Ver</button>' +
+                    '</div>' +
+                    '<p id="smmPrice_' + s.id + '" class="text-[11px] text-slate-400 mt-1.5"></p>' +
+                    '</div>';
+            }
+
+            function updateSmmPrice(id, pricePerThousand) {
+                var qty = parseInt(document.getElementById('smmQty_' + id).value, 10);
+                var el = document.getElementById('smmPrice_' + id);
+                if (!qty) { el.innerText = ''; return; }
+                el.innerText = 'Tutar: ' + ((pricePerThousand / 1000) * qty).toFixed(2) + ' TL';
+            }
+
+            async function buySmm(id) {
+                var link = document.getElementById('smmLink_' + id).value;
+                var qty = document.getElementById('smmQty_' + id).value;
+                if (!link || !qty) return alert('Lütfen link ve miktar girin.');
+                var r = await fetch('/api/buySmm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: id, username: currentUser, link: link, quantity: qty }) });
+                var d = await r.json();
+                alert(d.message);
+                if (d.success) { fetchBalance(); document.getElementById('smmLink_' + id).value = ''; document.getElementById('smmQty_' + id).value = ''; }
             }
 
             var MAX_AUTO_RETRY = 6;
@@ -1428,6 +1658,29 @@ app.get('/', (req, res) => {
                         '<button onclick="saveServiceCode(\\'' + s.id + '\\')" class="bg-emerald-600 px-3 py-1 rounded text-xs font-bold">Kaydet</button></div>';
                 }).join('') + '</div>';
 
+                var smmConfigHtml = '<p class="text-xs text-slate-500 mb-2">Service ID\\'yi aşağıdaki canlı arama kutusundan bul (örn. "instagram takip" yaz), sağlayıcı panelinden fiyatı 1000 adet başına görüp üzerine kar koyarak buraya gir. Ayarlanmayan ürün müşteride görünmez.</p>' +
+                    '<div class="flex flex-wrap gap-2 items-center mb-3">' +
+                    '<input id="smmSearchQ" placeholder="sağlayıcı servislerinde ara (örn: instagram takip)" class="flex-1 min-w-[200px] bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white">' +
+                    '<button onclick="searchSmmServices()" class="bg-blue-600 px-3 py-1 rounded text-xs font-bold">Ara</button>' +
+                    '</div>' +
+                    '<div id="smmSearchResult" class="text-xs text-slate-400 mb-4"></div>' +
+                    '<div class="space-y-2">' + (data.smmConfig || []).map(function (c) {
+                        return '<div class="bg-black/30 px-3 py-2 rounded-lg text-xs flex flex-wrap items-center gap-2">' +
+                            '<span class="font-bold text-white flex-1 min-w-[110px]">' + c.name + '</span>' +
+                            '<input id="smmSvc_' + c.id + '" placeholder="service ID" value="' + (c.serviceId || '') + '" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white w-24">' +
+                            '<input id="smmPrice_cfg_' + c.id + '" type="number" placeholder="TL/1000" value="' + (c.pricePerThousand || '') + '" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white w-20">' +
+                            '<input id="smmMin_' + c.id + '" type="number" placeholder="min" value="' + (c.min || 100) + '" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white w-16">' +
+                            '<input id="smmMax_' + c.id + '" type="number" placeholder="max" value="' + (c.max || 10000) + '" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white w-20">' +
+                            '<button onclick="saveSmmConfig(\\'' + c.id + '\\')" class="bg-emerald-600 px-3 py-1 rounded text-xs font-bold">Kaydet</button>' +
+                            (c.serviceId ? '<span class="text-emerald-400">✓ aktif</span>' : '<span class="text-amber-400">ayarlanmadı</span>') +
+                            '</div>';
+                    }).join('') + '</div>';
+
+                var smmOrdersHtml = '<div class="max-h-56 overflow-y-auto space-y-1">' + (data.smmOrders || []).map(function (o) {
+                    return '<div class="bg-black/30 px-3 py-2 rounded-lg text-xs flex flex-wrap justify-between items-center gap-2"><span class="font-bold text-white">' + o.username + '</span><span>' + o.itemName + ' x' + o.quantity + '</span><span class="text-pink-300">' + o.price.toFixed(2) + ' TL</span><span id="smmStatus_' + o.id + '" class="text-slate-400">' + o.status + '</span><span class="text-slate-500">' + o.time + '</span><button onclick="refreshSmmStatus(\\'' + o.id + '\\')" class="bg-blue-600 px-2 py-1 rounded text-xs font-bold">Durumu Yenile</button></div>';
+                }).join('') + '</div>';
+                if (!data.smmOrders || !data.smmOrders.length) smmOrdersHtml = '<p class="text-sm text-slate-500">Henüz SMM siparişi yok.</p>';
+
                 document.getElementById('mainContent').innerHTML =
                     '<div class="glassCard p-6 rounded-2xl space-y-6">' +
                     '<div class="flex justify-between items-center"><h2 class="text-xl font-bold text-emerald-400">Admin Paneli</h2><button onclick="location.reload();" class="bg-black/40 border border-emerald-500/30 px-4 py-2 rounded-xl text-xs font-bold">Geri Dön</button></div>' +
@@ -1439,6 +1692,8 @@ app.get('/', (req, res) => {
                     '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-sim-card mr-1"></i> Son Siparişler</h3>' + ordersHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-headset mr-1"></i> Destek Sohbetleri</h3>' + supportHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-code mr-1"></i> Yeni Ürünler - Servis Kodu Ayarları</h3>' + serviceCodesHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-pink-300"><i class="fa-brands fa-instagram mr-1"></i> Instagram / SMM Servis Ayarları</h3>' + smmConfigHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-pink-300"><i class="fa-solid fa-list-check mr-1"></i> SMM Siparişleri</h3>' + smmOrdersHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-stethoscope mr-1"></i> Sağlayıcı Teşhis (neden numara alınamıyor?)</h3>' +
                     '<div class="flex flex-wrap gap-2 items-center mb-2">' +
                     '<select id="diagProduct" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white">' + (data.catalog || []).map(function (c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join('') + '</select>' +
@@ -1496,6 +1751,42 @@ app.get('/', (req, res) => {
                 var d = await r.json();
                 alert(d.message);
                 openAdminPanel();
+            }
+
+            async function saveSmmConfig(itemId) {
+                var serviceId = document.getElementById('smmSvc_' + itemId).value.trim();
+                var price = document.getElementById('smmPrice_cfg_' + itemId).value;
+                var min = document.getElementById('smmMin_' + itemId).value;
+                var max = document.getElementById('smmMax_' + itemId).value;
+                var r = await fetch('/api/admin/setSmmConfig', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminToken: adminToken, itemId: itemId, serviceId: serviceId, pricePerThousand: price, min: min, max: max }) });
+                var d = await r.json();
+                alert(d.message);
+                openAdminPanel();
+            }
+
+            async function searchSmmServices() {
+                var q = document.getElementById('smmSearchQ').value.trim();
+                var box = document.getElementById('smmSearchResult');
+                box.innerHTML = '<span class="text-slate-500">Aranıyor...</span>';
+                try {
+                    var r = await fetch('/api/admin/smmLiveServices?adminToken=' + encodeURIComponent(adminToken || '') + '&q=' + encodeURIComponent(q));
+                    var d = await r.json();
+                    if (!d.success) { box.innerHTML = '<span class="text-red-400">' + (d.message || 'Hata') + '</span>'; return; }
+                    if (!d.list.length) { box.innerHTML = '<span class="text-slate-500">Eşleşen servis yok (' + d.count + ' servis içinde arandı).</span>'; return; }
+                    box.innerHTML = '<div class="max-h-48 overflow-y-auto space-y-1">' + d.list.map(function (s) {
+                        return '<div class="bg-black/30 px-2 py-1.5 rounded text-xs flex flex-wrap items-center gap-2"><span class="font-mono text-emerald-400">#' + s.service + '</span><span class="flex-1 min-w-[160px]">' + s.name + '</span><span class="text-slate-500">' + (s.category || '') + '</span><span class="text-amber-300">rate: ' + s.rate + '</span><span class="text-slate-500">min-max: ' + s.min + '-' + s.max + '</span></div>';
+                    }).join('') + '</div>';
+                } catch (e) { box.innerHTML = '<span class="text-red-400">İstek başarısız: ' + e.message + '</span>'; }
+            }
+
+            async function refreshSmmStatus(orderId) {
+                var el = document.getElementById('smmStatus_' + orderId);
+                el.innerText = 'Sorgulanıyor...';
+                try {
+                    var r = await fetch('/api/admin/smmOrderStatus?adminToken=' + encodeURIComponent(adminToken || '') + '&orderId=' + encodeURIComponent(orderId));
+                    var d = await r.json();
+                    el.innerText = d.success ? (d.status + (d.remains != null ? ' (kalan: ' + d.remains + ')' : '')) : (d.message || 'Hata');
+                } catch (e) { el.innerText = 'İstek başarısız'; }
             }
 
             async function processPay(paymentId, action) {
