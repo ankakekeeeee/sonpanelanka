@@ -13,7 +13,7 @@ app.use(bodyParser.json());
 const APP_VERSION = '2026-10-11-11';
 
 // ====== AYARLAR (Render > Environment bölümünden de girilebilir) ======
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8950975662:AAGVS-pPNJYWpxYjSLyJIXTEDBn0mD5y8XY';
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8989904538:AAGETyb0e5ghitsYM3yWInhnIi3lexYMjPw';
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '8811977430';
 const ADMIN_TELEGRAM_USERNAME = process.env.ADMIN_TELEGRAM_USERNAME || 'vipankaa'; // destek için görünen iletişim kanalı
 const ADMIN_WHATSAPP = process.env.ADMIN_WHATSAPP || '573181006792'; // wa.me linki için ülke koduyla, başında + ve boşluk olmadan
@@ -32,6 +32,12 @@ const LOW_BALANCE_THRESHOLD = parseFloat(process.env.LOW_BALANCE_THRESHOLD || '5
 // yani diskte eski/bozuk bir admin kaydı olsa bile admin girişi her zaman bununla çalışır.
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'Aklomanti';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'AZC.anka.34';
+
+// ====== Admin girişine kaba kuvvet (brute-force) koruması ======
+// Admin kullanıcı adını hedef alan art arda yanlış şifre denemeleri belirli bir IP'yi geçici kilitler.
+const ADMIN_LOGIN_MAX_ATTEMPTS = 5;
+const ADMIN_LOGIN_LOCKOUT_MS = 15 * 60 * 1000; // 15 dakika
+let adminLoginAttempts = {}; // ip -> {count, lastAttempt}
 
 // ====== Sağlayıcıya TEK SIRADAN istek atan kuyruk (TOO_MANY_REQUESTS'i kökten önlemek için) ======
 // Aynı anda birden fazla fonksiyon (fiyat kontrolü, ülke listesi, bakiye, getNumber...) sağlayıcıya
@@ -440,9 +446,26 @@ app.get('/api/getCustomerBalance', (req, res) => {
 app.post('/api/auth/login', (req, res) => {
     const { username, password } = req.body;
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+    // ====== Admin hesabına kaba kuvvet (brute-force) koruması ======
+    // Birisi admin şifresini tahmin etmeye çalışıyorsa (çok sayıda yanlış deneme), o IP geçici olarak kilitlenir
+    // ve admin'e Telegram'dan anında haber verilir. Admin kullanıcı adını hedef almayan denemeler etkilenmez.
+    const isAdminAttempt = username === ADMIN_USERNAME;
+    if (isAdminAttempt) {
+        const lock = adminLoginAttempts[ip];
+        if (lock && lock.count >= ADMIN_LOGIN_MAX_ATTEMPTS && (Date.now() - lock.lastAttempt) < ADMIN_LOGIN_LOCKOUT_MS) {
+            const waitMin = Math.ceil((ADMIN_LOGIN_LOCKOUT_MS - (Date.now() - lock.lastAttempt)) / 60000);
+            return res.json({ success: false, message: "Çok fazla hatalı deneme. Lütfen " + waitMin + " dakika sonra tekrar deneyin." });
+        }
+    }
+
     if (db.users[username] && db.users[username].password === password) {
         if (db.users[username].banned) {
             return res.json({ success: false, message: "Hesabınız yasaklandı. Destek ile iletişime geçin." });
+        }
+        if (isAdminAttempt) {
+            delete adminLoginAttempts[ip];
+            notifyAdminLoginEvent('✅ Admin paneline giriş yapıldı.\nIP: ' + ip + '\nZaman: ' + new Date().toLocaleString('tr-TR'), true);
         }
         const visitorRec = db.visitors.find(v => v.ip === ip);
         const source = (visitorRec && visitorRec.source) || 'Bilinmiyor';
@@ -453,6 +476,13 @@ app.post('/api/auth/login', (req, res) => {
         const adminToken = role === 'admin' ? createAdminSession(username) : null;
         res.json({ success: true, username, role, adminToken });
     } else {
+        if (isAdminAttempt) {
+            const lock = adminLoginAttempts[ip] || { count: 0 };
+            lock.count += 1;
+            lock.lastAttempt = Date.now();
+            adminLoginAttempts[ip] = lock;
+            notifyAdminLoginEvent('🚨 Admin paneline HATALI giriş denemesi (' + lock.count + '. deneme)!\nDenenen kullanıcı adı: ' + username + '\nIP: ' + ip + '\nZaman: ' + new Date().toLocaleString('tr-TR') + (lock.count >= ADMIN_LOGIN_MAX_ATTEMPTS ? '\n⛔ Bu IP ' + Math.round(ADMIN_LOGIN_LOCKOUT_MS / 60000) + ' dakika kilitlendi.' : ''), lock.count >= ADMIN_LOGIN_MAX_ATTEMPTS);
+        }
         res.json({ success: false, message: "Hatalı kullanıcı adı veya şifre!" });
     }
 });
@@ -705,6 +735,14 @@ let lastPurchaseFailAlert = 0;
 async function notifyPurchaseFailure(text) {
     if (Date.now() - lastPurchaseFailAlert < 8000) return; // aynı anda art arda gelen denemelerde spam olmasın diye 8sn
     lastPurchaseFailAlert = Date.now();
+    try { await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, { chat_id: ADMIN_CHAT_ID, text }); } catch (e) {}
+}
+// Admin girişi (başarılı veya hatalı deneme) Telegram'dan anında bildirilir - kilitlenme/başarı mesajları
+// hep gönderilir, ardı ardına gelen hatalı deneme spam'ını önlemek için sadece sıradan hatalı denemeler kısılır.
+let lastAdminLoginAlert = 0;
+async function notifyAdminLoginEvent(text, important) {
+    if (!important && Date.now() - lastAdminLoginAlert < 4000) return;
+    lastAdminLoginAlert = Date.now();
     try { await axios.post(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, { chat_id: ADMIN_CHAT_ID, text }); } catch (e) {}
 }
 
@@ -999,10 +1037,12 @@ app.get('/', (req, res) => {
         <title>Anka SMS</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
-            body { background: radial-gradient(ellipse at 50% 20%, #04130a 0%, #030a06 42%, #010302 100%); }
+            body { background: radial-gradient(ellipse at 50% 20%, #04130a 0%, #030a06 42%, #010302 100%); font-family: 'Manrope', sans-serif; }
+            h1, h2, h3, .anka, .vipBadge, .font-black { font-family: 'Syne', sans-serif; }
             #emberCanvas { position: fixed; inset: 0; z-index: 0; }
-            #matrixCanvas { position: fixed; inset: 0; z-index: 0; opacity: .55; }
             .anka { background: linear-gradient(90deg,#eaffd6,#4ade80,#16a34a,#4ade80,#eaffd6); background-size: 300% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 4s linear infinite; }
             @keyframes shimmer { to { background-position: 300% center; } }
             .vipBadge { display: inline-block; margin-left: 8px; padding: 2px 10px; font-size: 11px; font-weight: 900; letter-spacing: 2px; color: #04170c; background: linear-gradient(90deg,#fde68a,#facc15,#fde68a); background-size: 200% auto; border-radius: 6px; animation: shine 3s linear infinite; vertical-align: middle; box-shadow: 0 0 12px rgba(74,222,128,.5); }
@@ -1015,6 +1055,15 @@ app.get('/', (req, res) => {
             @keyframes introIn { to { opacity: 1; transform: none; } }
             .introFlash { position: absolute; inset: 0; background: radial-gradient(circle at 50% 45%, rgba(74,222,128,.55) 0%, rgba(74,222,128,0) 60%); animation: flashOut 1.4s ease-out forwards; pointer-events: none; }
             @keyframes flashOut { 0% { opacity: 1; transform: scale(.3); } 100% { opacity: 0; transform: scale(2.2); } }
+            .introScan { position: absolute; left: 0; right: 0; height: 140px; pointer-events: none; background: linear-gradient(180deg, rgba(74,222,128,0) 0%, rgba(74,222,128,.14) 45%, rgba(250,204,21,.08) 55%, rgba(74,222,128,0) 100%); animation: scanSweep 2.6s cubic-bezier(.4,0,.2,1) infinite; z-index: 1; }
+            @keyframes scanSweep { 0% { top: -140px; } 100% { top: 100%; } }
+            .pingRing { position: absolute; width: 90px; height: 90px; border-radius: 50%; border: 1.5px solid rgba(74,222,128,.8); z-index: 1; opacity: 0; pointer-events: none; }
+            .pingRing.go { animation: pingOut 1.1s cubic-bezier(.2,.7,.3,1) forwards; }
+            @keyframes pingOut { 0% { opacity: .85; transform: scale(.4); } 100% { opacity: 0; transform: scale(3.6); } }
+            .modalPop { animation: modalPopIn .4s cubic-bezier(.2,.9,.3,1.1); }
+            @keyframes modalPopIn { 0% { opacity: 0; transform: translateY(18px) scale(.93); } 100% { opacity: 1; transform: none; } }
+            @keyframes introGlitch { 0%,100% { transform: none; filter: none; } 92% { transform: translate(1px,0); } 94% { transform: translate(-1.5px,.5px); filter: hue-rotate(10deg); } 96% { transform: translate(1px,-.5px); } }
+            #introPhoenix.introStage, h1.anka.introStage { animation: introIn 1s cubic-bezier(.16,.84,.44,1) forwards, introGlitch 3.2s ease-in-out .9s 1; }
             .phoenixWrap { width: min(360px,78vw); margin: 0 auto; position: relative; }
             .phoenixWrap svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 0 28px rgba(74,222,128,.65)); }
             .wingR { transform-origin: 0 0; animation: wingFlap 1.6s ease-in-out infinite; }
@@ -1055,6 +1104,23 @@ app.get('/', (req, res) => {
             .shineBtn::after { content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(115deg,transparent,rgba(255,255,255,.35),transparent); transform: skewX(-20deg); transition: left .6s ease; }
             .shineBtn:hover::after { left: 130%; }
 
+            /* ====== Aktif numara kartı: satın alma sonrası net görünürlük ====== */
+            #activeOrderWrap { position: relative; }
+            #activeOrderWrap.hasOrders #activeOrderHeading { display: flex; }
+            .orderFlashCard { animation: orderGlow 2.2s ease-out 1; }
+            @keyframes orderGlow {
+                0% { box-shadow: 0 0 0 0 rgba(74,222,128,.75), 0 0 40px rgba(74,222,128,.55); border-color: rgba(74,222,128,1); }
+                100% { box-shadow: 0 0 0 0 rgba(74,222,128,0), 0 0 0 rgba(74,222,128,0); }
+            }
+            #toastStack { position: fixed; top: 86px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; max-width: 92vw; }
+            .appToast { pointer-events: auto; background: linear-gradient(135deg,rgba(6,20,12,.96),rgba(4,12,8,.96)); border: 1px solid rgba(74,222,128,.55); box-shadow: 0 10px 36px -8px rgba(16,185,129,.5); color: #ecfdf5; padding: 14px 18px; border-radius: 14px; font-size: .9rem; font-weight: 600; display: flex; align-items: center; gap: 10px; animation: toastIn .35s ease, toastOut .4s ease 3.6s forwards; max-width: 360px; }
+            @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+            @keyframes toastOut { to { opacity: 0; transform: translateX(40px); } }
+            @media (max-width: 640px) {
+                #toastStack { left: 12px; right: 12px; top: 76px; max-width: unset; }
+                .appToast { max-width: unset; }
+            }
+
             /* ====== Mobil incelikler ====== */
             @media (max-width: 640px) {
                 header { flex-wrap: wrap; gap: 10px; padding: 14px; }
@@ -1068,10 +1134,10 @@ app.get('/', (req, res) => {
         </style>
     </head>
     <body class="text-slate-100 font-sans min-h-screen flex flex-col justify-between">
-        <canvas id="matrixCanvas"></canvas>
         <canvas id="emberCanvas"></canvas>
         <div class="orbField"><div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div></div>
         <div class="grainOverlay"></div>
+        <div id="toastStack"></div>
         <template id="phoenixTpl">
             <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Anka amblemi">
             <defs>
@@ -1108,6 +1174,8 @@ app.get('/', (req, res) => {
 
         <div id="intro" style="position:fixed;inset:0;z-index:100;background:radial-gradient(ellipse at 50% 35%,rgba(4,21,12,.92) 0%,rgba(2,7,5,.96) 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .9s ease;cursor:pointer;overflow:hidden" onclick="closeIntro()">
             <div class="introFlash"></div>
+            <div class="introScan"></div>
+            <div id="introPing" class="pingRing" style="top:50%;left:50%;margin:-45px 0 0 -45px"></div>
             <div class="ring introStage" style="z-index:1;animation-delay:.05s"></div>
             <div class="ring2 introStage" style="z-index:1;animation-delay:.05s"></div>
             <span class="vipBadge introStage" style="z-index:1;animation-delay:.15s;letter-spacing:3px">VIP ERİŞİM</span>
@@ -1184,37 +1252,6 @@ app.get('/', (req, res) => {
             var phoenixCount = 0;
 
             (function () {
-                // Yesil Matrix yagmuru arka plan
-                var c = document.getElementById('matrixCanvas');
-                var ctx = c.getContext('2d');
-                var cols, drops, fontSize = 16;
-                var chars = 'ANKASMS01アイウエオカキクケコサシスセソ0123456789ﾊﾋﾌﾍﾎﾗﾘﾟｳｴｵ'.split('');
-                function resize() {
-                    c.width = window.innerWidth; c.height = window.innerHeight;
-                    cols = Math.ceil(c.width / fontSize);
-                    drops = [];
-                    for (var i = 0; i < cols; i++) drops[i] = Math.random() * -100;
-                }
-                resize();
-                window.addEventListener('resize', resize);
-                function tickMatrix() {
-                    ctx.fillStyle = 'rgba(2,10,6,0.18)';
-                    ctx.fillRect(0, 0, c.width, c.height);
-                    ctx.font = fontSize + 'px monospace';
-                    for (var i = 0; i < drops.length; i++) {
-                        var ch = chars[Math.floor(Math.random() * chars.length)];
-                        var x = i * fontSize, y = drops[i] * fontSize;
-                        ctx.fillStyle = Math.random() > .93 ? '#eaffd6' : (Math.random() > .5 ? '#4ade80' : '#16a34a');
-                        ctx.fillText(ch, x, y);
-                        if (y > c.height && Math.random() > .975) drops[i] = 0;
-                        drops[i]++;
-                    }
-                    setTimeout(function () { requestAnimationFrame(tickMatrix); }, 45);
-                }
-                tickMatrix();
-            })();
-
-            (function () {
                 // Altin/yesil kivilcim parcaciklari (ust katman, hafif)
                 var c = document.getElementById('emberCanvas');
                 var ctx = c.getContext('2d');
@@ -1260,14 +1297,20 @@ app.get('/', (req, res) => {
             function runIntro() {
                 var ip = document.getElementById('introPhoenix');
                 if (ip) ip.innerHTML = phoenixHTML();
-                var lines = ['> sistem başlatılıyor...', '> şifreli bağlantı kuruluyor...', '> sunucu doğrulandı [OK]', '> anka külllerinden doğuyor...', '> erişim sağlandı'];
+                var lines = ['> sistem başlatılıyor...', '> şifreli bağlantı kuruluyor (AES-256)...', '> sunucu doğrulandı [OK]', '> anka küllerinden doğuyor...', '> erişim sağlandı'];
                 var log = document.getElementById('introLog');
                 var bar = document.getElementById('introBar');
+                var ping = document.getElementById('introPing');
                 lines.forEach(function (t, i) {
                     setTimeout(function () {
                         if (introClosed) return;
                         var d = document.createElement('div'); d.textContent = t; log.appendChild(d);
                         bar.style.width = ((i + 1) * 20) + '%';
+                        if (i === 2 && ping) { ping.classList.remove('go'); void ping.offsetWidth; ping.classList.add('go'); }
+                        if (i === lines.length - 1) {
+                            var stage = document.getElementById('intro');
+                            if (stage) { stage.style.transition = 'transform .25s ease, opacity .9s ease'; stage.style.transform = 'scale(1.015)'; setTimeout(function () { if (stage) stage.style.transform = 'scale(1)'; }, 180); }
+                        }
                     }, 450 + i * 620);
                 });
                 setTimeout(function () { closeIntro(); }, 3900);
@@ -1330,11 +1373,24 @@ app.get('/', (req, res) => {
 
             function buildMain() {
                 document.getElementById('mainContent').innerHTML =
+                    '<div id="activeOrderWrap" class="mb-8">' +
+                    '<div id="activeOrderHeading" class="items-center gap-2 mb-3" style="display:none;"><i class="fa-solid fa-signal text-emerald-400"></i><h3 class="font-black text-lg tracking-wide">Aktif Numaralarım</h3></div>' +
+                    '<div id="activeOrderArea"></div>' +
+                    '</div>' +
                     '<div id="servicesGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"><p class="text-slate-400 text-sm">Yükleniyor...</p></div>' +
                     '<div class="mt-6 flex justify-end"><button onclick="openDeposit()" class="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-bold text-sm"><i class="fa-solid fa-wallet mr-2"></i> Bakiye Yükle</button></div>' +
                     '<div id="smmSection" class="mt-8"></div>' +
-                    '<div id="manualSection" class="mt-8"></div>' +
-                    '<div id="activeOrderArea" class="mt-8"></div>';
+                    '<div id="manualSection" class="mt-8"></div>';
+            }
+
+            function showToast(message, icon) {
+                var stack = document.getElementById('toastStack');
+                if (!stack) return;
+                var t = document.createElement('div');
+                t.className = 'appToast';
+                t.innerHTML = '<i class="fa-solid ' + (icon || 'fa-circle-check') + ' text-emerald-400 text-lg"></i><span>' + message + '</span>';
+                stack.appendChild(t);
+                setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 4100);
             }
 
             function openDeposit() { document.getElementById('depositModal').classList.remove('hidden'); }
@@ -1450,7 +1506,7 @@ app.get('/', (req, res) => {
                         btn.disabled = false;
                         btn.innerText = 'Numara Al';
                         fetchBalance();
-                        trackOrder(data.order.activationId, data.order.phoneNumber, 600, data.order.productName, null);
+                        trackOrder(data.order.activationId, data.order.phoneNumber, 600, data.order.productName, null, true);
                     } else if (data.retryable && attemptNo <= MAX_AUTO_RETRY) {
                         setTimeout(function () { buyNumber(btn, attemptNo + 1); }, 2500);
                     } else {
@@ -1465,9 +1521,13 @@ app.get('/', (req, res) => {
                 }
             }
 
-            function trackOrder(id, phone, timeLeft, productName, doneCode) {
+            function trackOrder(id, phone, timeLeft, productName, doneCode, isNew) {
                 var area = document.getElementById('activeOrderArea');
                 if (!area) return;
+                var wrap = document.getElementById('activeOrderWrap');
+                var heading = document.getElementById('activeOrderHeading');
+                if (wrap) wrap.classList.add('hasOrders');
+                if (heading) heading.style.display = 'flex';
                 var old = document.getElementById('order_' + id);
                 if (old) old.parentNode.removeChild(old);
                 if (orderTimers[id]) { clearInterval(orderTimers[id]); delete orderTimers[id]; }
@@ -1475,7 +1535,7 @@ app.get('/', (req, res) => {
 
                 var card = document.createElement('div');
                 card.id = 'order_' + id;
-                card.className = 'bg-black/40 border border-emerald-500 p-6 rounded-2xl shadow-2xl relative mb-4';
+                card.className = 'bg-black/40 border border-emerald-500 p-6 rounded-2xl shadow-2xl relative mb-4' + (isNew ? ' orderFlashCard' : '');
                 card.innerHTML =
                     '<h3 class="font-bold text-emerald-400 text-lg mb-3"><i class="fa-solid fa-circle-check mr-2"></i> ' + (productName || 'Numara') + '</h3>' +
                     '<p class="text-sm text-slate-300">Numara: <strong class="text-white font-mono text-xl select-all">' + phone + '</strong></p>' +
@@ -1487,6 +1547,10 @@ app.get('/', (req, res) => {
                         : '<button data-id="' + id + '" onclick="cancelBtn(this)" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/40 px-4 py-2 rounded-xl text-xs font-bold transition">Değiştir / İptal Et</button>') +
                     '</div></div>';
                 area.insertBefore(card, area.firstChild);
+                if (isNew) {
+                    showToast('Numaranız alındı: ' + phone + ' — SMS kodunu yukarıdan takip edin.', 'fa-circle-check');
+                    setTimeout(function () { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 150);
+                }
                 if (done) return;
 
                 var tick = 0;
@@ -1508,7 +1572,13 @@ app.get('/', (req, res) => {
                             if (actionArea) actionArea.innerHTML = '<span class="text-emerald-400 font-bold text-xs"><i class="fa-solid fa-check"></i> Tamamlandı</span>';
                             var tEl = document.getElementById('timerDisplay_' + id);
                             if (tEl) tEl.parentNode.innerHTML = '';
-                            alert('SMS Kodunuz Geldi: ' + data.code);
+                            var cardEl = document.getElementById('order_' + id);
+                            if (cardEl) {
+                                cardEl.classList.remove('orderFlashCard');
+                                void cardEl.offsetWidth;
+                                cardEl.classList.add('orderFlashCard');
+                            }
+                            showToast('SMS kodunuz geldi: ' + data.code, 'fa-comment-sms');
                         }
                     } catch (e) {}
                 }, 1000);
