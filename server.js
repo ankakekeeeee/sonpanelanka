@@ -81,7 +81,8 @@ const DEFAULT_DB = {
     support: {}, // username -> [{from:'user'|'admin', text, time, ts}]
     adminSessions: {}, // token -> {username, ts} - DİSKE YAZILIR, sunucu yeniden başlasa da (Render uykudan uyanma/redeploy) admin oturumu "Yetkisiz!" vermesin diye
     smmConfig: {}, // itemId -> {serviceId, pricePerThousand, min, max} - admin panelden ayarlanır
-    smmOrders: {} // id -> {username, itemId, link, quantity, price, providerOrderId, status, time, ts}
+    smmOrders: {}, // id -> {username, itemId, link, quantity, price, providerOrderId, status, time, ts}
+    customCatalog: [] // admin panelden elle eklenen ürünler (sunucu yeniden başlayınca CATALOG'a geri yüklenir)
 };
 
 // ====== KALICI KAYIT (dosyaya yazma) ======
@@ -197,11 +198,12 @@ function checkAdminToken(token) {
 // (isimle bulunamazsa denenecek, yaygın bilinen kod tahminleri) var. Gerçek kod ilk satışta otomatik
 // keşfedilip önbelleğe alınır (resolveServiceCode). Admin panelden de elle düzeltilebilir.
 const CATALOG = [
-    { id: 'wa_tr', key: 'tr', name: 'WhatsApp Türkiye', serviceCode: 'wa', defCountry: '62', price: 300, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-emerald-500/10', color: 'text-emerald-400' },
+    { id: 'wa_tr', key: 'tr', name: 'WhatsApp Türkiye', serviceCode: 'wa', defCountry: '62', price: 300, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-red-500/10', color: 'text-red-400' },
     // Aynı WhatsApp Türkiye havuzundan çekilir (servis/ülke aynı) - sadece panelde farklı isim/fiyatla gösterilir.
-    { id: 'wa_tr_dinlenmis', key: 'tr', name: 'Dinlendirilmiş WhatsApp Türkiye', serviceCode: 'wa', defCountry: '62', price: 360, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-emerald-500/10', color: 'text-emerald-400' },
+    { id: 'wa_tr_dinlenmis', key: 'tr', name: 'Dinlendirilmiş WhatsApp Türkiye', serviceCode: 'wa', defCountry: '62', price: 360, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-red-500/10', color: 'text-red-400' },
     { id: 'tg_tr', key: 'tr', name: 'Telegram Türkiye', serviceCode: 'tg', defCountry: '62', price: 200, icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400' },
-    { id: 'wa_ph', key: 'ph', name: 'WhatsApp Filipinler', serviceCode: 'wa', defCountry: '4', price: 200, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-emerald-500/10', color: 'text-emerald-400' },
+    { id: 'wa_ph', key: 'ph', name: 'WhatsApp Filipinler', serviceCode: 'wa', defCountry: '4', price: 200, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-red-500/10', color: 'text-red-400' },
+    { id: 'wa_co', key: 'co', name: 'WhatsApp Kolombiya', serviceCode: 'wa', defCountry: '10', price: 190, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-red-500/10', color: 'text-red-400' },
     { id: 'tg_us', key: 'us', name: 'Telegram ABD', serviceCode: 'tg', defCountry: '187', alt: ['12'], price: 200, icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400' },
     { id: 'ig_tr', key: 'tr', name: 'Instagram Türkiye', defCountry: '62', price: 60, serviceHints: ['instagram'], guessCodes: ['ig'], icon: 'fa-instagram', iconSet: 'fa-brands', bg: 'bg-pink-500/10', color: 'text-pink-400' },
     { id: 'go_tr', key: 'tr', name: 'Google / Gmail Türkiye', defCountry: '62', price: 60, serviceHints: ['google', 'gmail'], guessCodes: ['go'], icon: 'fa-google', iconSet: 'fa-brands', bg: 'bg-red-500/10', color: 'text-red-400' },
@@ -216,8 +218,11 @@ const CATALOG = [
     { id: 'paypal_tr', key: 'tr', name: 'PayPal', defCountry: '62', price: 150, serviceHints: ['paypal'], guessCodes: ['mt', 'pp'], icon: 'fa-paypal', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-300' },
     { id: 'steam_tr', key: 'tr', name: 'Steam Türkiye', defCountry: '62', price: 150, serviceHints: ['steam'], guessCodes: ['st', 'su'], icon: 'fa-steam', iconSet: 'fa-brands', bg: 'bg-slate-500/10', color: 'text-slate-300' }
 ];
+// Admin panelden elle eklenmiş ürünler (disk'ten yüklendi) - sunucu her yeniden başladığında CATALOG'a geri eklenir,
+// böylece admin'in eklediği ürünler bir Render yeniden başlatmasıyla kaybolmaz.
+(db.customCatalog || []).forEach(p => { if (p && p.id && !CATALOG.some(c => c.id === p.id)) CATALOG.push(p); });
 const SERVICE_INFO = {
-    wa: { name: 'WhatsApp', icon: 'fa-whatsapp', bg: 'bg-emerald-500/10', color: 'text-emerald-400' },
+    wa: { name: 'WhatsApp', icon: 'fa-whatsapp', bg: 'bg-red-500/10', color: 'text-red-400' },
     tg: { name: 'Telegram', icon: 'fa-telegram', bg: 'bg-blue-500/10', color: 'text-blue-400' }
 };
 
@@ -311,20 +316,32 @@ function normTr(s) {
         .replace(/ı/g, 'i').replace(/İ/g, 'i').replace(/ş/g, 's').replace(/ğ/g, 'g')
         .replace(/ü/g, 'u').replace(/ö/g, 'o').replace(/ç/g, 'c').trim();
 }
+// key -> isim eşleştirme ipuçları (kelime bazlı, ör. "turkey" "united states" gibi çok kelimeli ifadeler de dahil).
+// Yeni bir ülke eklemek için sadece burada bir satır eklemek yeterli - CATALOG'daki item.key otomatik keşfedilir,
+// resolveCountries() artık CATALOG'u tarayıp hangi key'lerin gerektiğini kendisi bulur (aşağıdaki KEY_HINTS listesi).
+const KEY_HINTS = {
+    tr: ['turkey', 'turkiye', 'турци', 'turkiye cumhuriyeti'],
+    ph: ['philippines', 'филиппин', 'filipin'],
+    us: ['usa', 'united states', 'сша', 'amerika birlesik'],
+    co: ['colombia', 'kolombiya', 'колумби']
+};
 function nameHas(key, n) {
     const t = normTr(n);
-    if (key === 'tr') return t.includes('turkey') || t.includes('turkiye') || t.includes('турци') || /^tr$/.test(t) || t === 'turkiye cumhuriyeti';
-    if (key === 'ph') return t.includes('philippines') || t.includes('филиппин') || t.includes('filipin');
-    if (key === 'us') return /\busa\b/.test(t) || t.includes('united states') || t.includes('сша') || t.includes('amerika birlesik');
-    return false;
+    const hints = KEY_HINTS[key];
+    if (!hints) return false;
+    return hints.some(h => h.includes(' ') ? t.includes(h) : new RegExp('\\b' + h + '\\b').test(t));
 }
 
 // ====== Sağlayıcıdan ülke ID'lerini otomatik bul (isme göre - 1 saatte bir yenile) ======
+// NOT: aranacak key listesi CATALOG'daki ürünlerin kullandığı tüm "key" değerlerinden otomatik çıkarılır,
+// böylece yeni bir ülke/ürün eklenince burayı elle güncellemeye gerek kalmaz.
 let countryCache = { time: 0, map: {}, all: {} };
 async function resolveCountries() {
     if (countryCache.time && Date.now() - countryCache.time < 3600000) return countryCache;
     const map = {};
-    const all = { tr: [], ph: [], us: [] };
+    const wantedKeys = Array.from(new Set(CATALOG.map(c => c.key).filter(Boolean).concat(Object.keys(KEY_HINTS))));
+    const all = {};
+    wantedKeys.forEach(k => { all[k] = []; });
     try {
         const r = await providerGet({ action: 'getCountries' }, 15000);
         let d = r.data;
@@ -414,7 +431,7 @@ async function countryCandidates(item, serviceCode) {
 app.get('/api/getServices', (req, res) => {
     const list = CATALOG.map(item => {
         const meta = (item.icon ? item : SERVICE_INFO[item.serviceCode]) || {};
-        return { id: item.id, name: item.name, price: item.price, icon: meta.icon || 'fa-circle', iconSet: meta.iconSet || 'fa-solid', bg: meta.bg || 'bg-emerald-500/10', color: meta.color || 'text-emerald-400' };
+        return { id: item.id, name: item.name, price: item.price, icon: meta.icon || 'fa-circle', iconSet: meta.iconSet || 'fa-solid', bg: meta.bg || 'bg-red-500/10', color: meta.color || 'text-red-400' };
     });
     res.json({ success: true, services: list });
 });
@@ -778,45 +795,60 @@ app.post('/api/buyNumber', async (req, res) => {
 
     try {
         const serviceCode = await resolveServiceCode(item);
-        // Adaylar zaten stoğa göre en iyiden en kötüye sıralı; hepsini denemek (özellikle sağlayıcı
-        // yavaşsa/sınırlıyorsa) kullanıcıyı çok uzun bekletir. İlk 4 adayla sınırlıyoruz.
-        const candidates = (await countryCandidates(item, serviceCode)).slice(0, 4);
         let responseText = '';
-        let usedCountry = candidates[0];
+        let usedCountry = null;
         let allRaw = [];
         let sawNoBalance = false;
 
         const ATTEMPTS_PER_COUNTRY = 2; // adaylar artık canlı stoğa göre sıralı, gereksiz yere aynı ülkede bekletmeye gerek yok
-        outer:
-        for (const country of candidates) {
-            usedCountry = country;
-            for (let attempt = 0; attempt < ATTEMPTS_PER_COUNTRY; attempt++) {
-                const resp = await providerGet({ action: 'getNumber', service: serviceCode, country: country }, 30000);
-                responseText = resp.data;
-                if (typeof responseText === 'object') responseText = JSON.stringify(responseText);
-                responseText = responseText ? String(responseText).trim() : '';
-                allRaw.push(country + ':' + responseText);
-                console.log('[getNumber] ' + item.id + ' country=' + country + ' deneme=' + (attempt + 1) + ' -> "' + responseText + '"');
-
-                if (responseText.startsWith('ACCESS_NUMBER')) break outer;
-                if (responseText.startsWith('NO_NUMBERS')) {
-                    if (attempt < ATTEMPTS_PER_COUNTRY - 1) await new Promise(r => setTimeout(r, 1200));
-                    continue;
-                }
-                if (responseText.startsWith('TOO_MANY_REQUESTS')) {
-                    // Sağlayıcı "çok fazla istek" diyor - stok/bakiye sorunu değil, sadece yavaşlamamız gerekiyor.
-                    await new Promise(r => setTimeout(r, 4000));
-                    continue;
-                }
-                if (responseText.startsWith('NO_BALANCE')) {
-                    // Bu ülke/servis kombinasyonu için sağlayıcı bakiyesi yetersiz; yine de daha ucuz olabilecek
-                    // başka bir aday ülke varsa onu denemeye devam et, direkt teslim olma.
-                    sawNoBalance = true;
-                    break; // bu ülkede daha fazla deneme yapma, sıradaki aday ülkeye geç
-                }
-                break outer; // başka bir sağlayıcı hatası (anahtar, servis vs.) -> denemeyi bitir
+        // "havuzda stok yok" hatasının en sık kökeni önbellekteki (45sn/1sa) fiyat-stok bilgisinin bayatlamış
+        // olması: sağlayıcı az önce stok eklemiş/azaltmış olabilir ama biz hâlâ eski veriyi kullanıyor oluruz.
+        // Bu yüzden 2 geçiş yapıyoruz: 1) normal (önbellekli) aday listesiyle dene, 2) hepsi NO_NUMBERS ise
+        // önbelleği zorla temizleyip GERÇEK canlı veriyle bir kez daha dene, sonra teslim ol.
+        for (let pass = 0; pass < 2; pass++) {
+            if (pass === 1) {
+                delete priceCache[serviceCode];
+                countryCache.time = 0;
             }
-            if (responseText.startsWith('ACCESS_NUMBER')) break;
+            // Adaylar zaten stoğa göre en iyiden en kötüye sıralı; hepsini denemek (özellikle sağlayıcı
+            // yavaşsa/sınırlıyorsa) kullanıcıyı çok uzun bekletir. İlk 6 adayla sınırlıyoruz.
+            const candidates = (await countryCandidates(item, serviceCode)).slice(0, 6);
+            let gotAccess = false;
+            outer:
+            for (const country of candidates) {
+                usedCountry = country;
+                for (let attempt = 0; attempt < ATTEMPTS_PER_COUNTRY; attempt++) {
+                    const resp = await providerGet({ action: 'getNumber', service: serviceCode, country: country }, 30000);
+                    responseText = resp.data;
+                    if (typeof responseText === 'object') responseText = JSON.stringify(responseText);
+                    responseText = responseText ? String(responseText).trim() : '';
+                    allRaw.push(country + ':' + responseText);
+                    console.log('[getNumber] ' + item.id + ' pass=' + pass + ' country=' + country + ' deneme=' + (attempt + 1) + ' -> "' + responseText + '"');
+
+                    if (responseText.startsWith('ACCESS_NUMBER')) { gotAccess = true; break outer; }
+                    if (responseText.startsWith('NO_NUMBERS')) {
+                        if (attempt < ATTEMPTS_PER_COUNTRY - 1) await new Promise(r => setTimeout(r, 1200));
+                        continue;
+                    }
+                    if (responseText.startsWith('TOO_MANY_REQUESTS')) {
+                        // Sağlayıcı "çok fazla istek" diyor - stok/bakiye sorunu değil, sadece yavaşlamamız gerekiyor.
+                        await new Promise(r => setTimeout(r, 4000));
+                        continue;
+                    }
+                    if (responseText.startsWith('NO_BALANCE')) {
+                        // Bu ülke/servis kombinasyonu için sağlayıcı bakiyesi yetersiz; yine de daha ucuz olabilecek
+                        // başka bir aday ülke varsa onu denemeye devam et, direkt teslim olma.
+                        sawNoBalance = true;
+                        break; // bu ülkede daha fazla deneme yapma, sıradaki aday ülkeye geç
+                    }
+                    break outer; // başka bir sağlayıcı hatası (anahtar, servis vs.) -> denemeyi bitir
+                }
+                if (responseText.startsWith('ACCESS_NUMBER')) { gotAccess = true; break; }
+            }
+            if (gotAccess) break;
+            // NO_NUMBERS dışında bir hatayla (NO_BALANCE, anahtar hatası vs.) çıkıldıysa tazelenmiş önbellekle
+            // tekrar denemenin faydası yok, ikinci geçişi atla.
+            if (!responseText.startsWith('NO_NUMBERS') && pass === 0) break;
         }
 
         if (responseText.startsWith('ACCESS_NUMBER')) {
@@ -1040,24 +1072,24 @@ app.get('/', (req, res) => {
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
-            body { background: radial-gradient(ellipse at 50% 20%, #04130a 0%, #030a06 42%, #010302 100%); font-family: 'Manrope', sans-serif; }
+            body { background: radial-gradient(ellipse at 50% 20%, #130404 0%, #0a0303 42%, #030101 100%); font-family: 'Manrope', sans-serif; }
             h1, h2, h3, .anka, .vipBadge, .font-black { font-family: 'Syne', sans-serif; }
             #emberCanvas { position: fixed; inset: 0; z-index: 0; }
-            .anka { background: linear-gradient(90deg,#eaffd6,#4ade80,#16a34a,#4ade80,#eaffd6); background-size: 300% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 4s linear infinite; }
+            .anka { background: linear-gradient(90deg,#fff1e0,#f87171,#dc2626,#f87171,#fff1e0); background-size: 300% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 4s linear infinite; }
             @keyframes shimmer { to { background-position: 300% center; } }
-            .vipBadge { display: inline-block; margin-left: 8px; padding: 2px 10px; font-size: 11px; font-weight: 900; letter-spacing: 2px; color: #04170c; background: linear-gradient(90deg,#fde68a,#facc15,#fde68a); background-size: 200% auto; border-radius: 6px; animation: shine 3s linear infinite; vertical-align: middle; box-shadow: 0 0 12px rgba(74,222,128,.5); }
+            .vipBadge { display: inline-block; margin-left: 8px; padding: 2px 10px; font-size: 11px; font-weight: 900; letter-spacing: 2px; color: #170404; background: linear-gradient(90deg,#fde68a,#facc15,#fde68a); background-size: 200% auto; border-radius: 6px; animation: shine 3s linear infinite; vertical-align: middle; box-shadow: 0 0 12px rgba(248,113,113,.5); }
             @keyframes shine { to { background-position: 200% center; } }
-            .glassCard { background: rgba(5,16,10,.55); border: 1px solid rgba(74,222,128,.28); box-shadow: 0 0 60px rgba(34,197,94,.12), inset 0 0 40px rgba(74,222,128,.04); backdrop-filter: blur(10px); }
-            .ring { position: absolute; inset: -30px; border-radius: 50%; border: 1px solid rgba(74,222,128,.25); animation: spin 18s linear infinite; }
+            .glassCard { background: rgba(20,5,5,.55); border: 1px solid rgba(248,113,113,.28); box-shadow: 0 0 60px rgba(239,68,68,.12), inset 0 0 40px rgba(248,113,113,.04); backdrop-filter: blur(10px); }
+            .ring { position: absolute; inset: -30px; border-radius: 50%; border: 1px solid rgba(248,113,113,.25); animation: spin 18s linear infinite; }
             .ring2 { position: absolute; inset: -60px; border-radius: 50%; border: 1px dashed rgba(250,204,21,.15); animation: spin 28s linear infinite reverse; }
             @keyframes spin { to { transform: rotate(360deg); } }
             .introStage { opacity: 0; transform: translateY(22px) scale(.94); animation: introIn 1s cubic-bezier(.16,.84,.44,1) forwards; }
             @keyframes introIn { to { opacity: 1; transform: none; } }
-            .introFlash { position: absolute; inset: 0; background: radial-gradient(circle at 50% 45%, rgba(74,222,128,.55) 0%, rgba(74,222,128,0) 60%); animation: flashOut 1.4s ease-out forwards; pointer-events: none; }
+            .introFlash { position: absolute; inset: 0; background: radial-gradient(circle at 50% 45%, rgba(248,113,113,.55) 0%, rgba(248,113,113,0) 60%); animation: flashOut 1.4s ease-out forwards; pointer-events: none; }
             @keyframes flashOut { 0% { opacity: 1; transform: scale(.3); } 100% { opacity: 0; transform: scale(2.2); } }
-            .introScan { position: absolute; left: 0; right: 0; height: 140px; pointer-events: none; background: linear-gradient(180deg, rgba(74,222,128,0) 0%, rgba(74,222,128,.14) 45%, rgba(250,204,21,.08) 55%, rgba(74,222,128,0) 100%); animation: scanSweep 2.6s cubic-bezier(.4,0,.2,1) infinite; z-index: 1; }
+            .introScan { position: absolute; left: 0; right: 0; height: 140px; pointer-events: none; background: linear-gradient(180deg, rgba(248,113,113,0) 0%, rgba(248,113,113,.14) 45%, rgba(250,204,21,.08) 55%, rgba(248,113,113,0) 100%); animation: scanSweep 2.6s cubic-bezier(.4,0,.2,1) infinite; z-index: 1; }
             @keyframes scanSweep { 0% { top: -140px; } 100% { top: 100%; } }
-            .pingRing { position: absolute; width: 90px; height: 90px; border-radius: 50%; border: 1.5px solid rgba(74,222,128,.8); z-index: 1; opacity: 0; pointer-events: none; }
+            .pingRing { position: absolute; width: 90px; height: 90px; border-radius: 50%; border: 1.5px solid rgba(248,113,113,.8); z-index: 1; opacity: 0; pointer-events: none; }
             .pingRing.go { animation: pingOut 1.1s cubic-bezier(.2,.7,.3,1) forwards; }
             @keyframes pingOut { 0% { opacity: .85; transform: scale(.4); } 100% { opacity: 0; transform: scale(3.6); } }
             .modalPop { animation: modalPopIn .4s cubic-bezier(.2,.9,.3,1.1); }
@@ -1065,7 +1097,7 @@ app.get('/', (req, res) => {
             @keyframes introGlitch { 0%,100% { transform: none; filter: none; } 92% { transform: translate(1px,0); } 94% { transform: translate(-1.5px,.5px); filter: hue-rotate(10deg); } 96% { transform: translate(1px,-.5px); } }
             #introPhoenix.introStage, h1.anka.introStage { animation: introIn 1s cubic-bezier(.16,.84,.44,1) forwards, introGlitch 3.2s ease-in-out .9s 1; }
             .phoenixWrap { width: min(360px,78vw); margin: 0 auto; position: relative; }
-            .phoenixWrap svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 0 28px rgba(74,222,128,.65)); }
+            .phoenixWrap svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 0 28px rgba(248,113,113,.65)); }
             .wingR { transform-origin: 0 0; animation: wingFlap 1.6s ease-in-out infinite; }
             @keyframes wingFlap { 0%,100% { transform: rotate(6deg); } 50% { transform: rotate(-10deg); } }
             .birdFloat { animation: floaty 3.2s ease-in-out infinite; }
@@ -1079,15 +1111,15 @@ app.get('/', (req, res) => {
             .blink { animation: blink 1s steps(2) infinite; }
             @keyframes blink { 50% { opacity: 0; } }
             .vipCard { border: 1px solid rgba(250,204,21,.45) !important; }
-            .bg-slate-900, .bg-slate-950 { background-color: rgba(4,12,8,.82) !important; }
-            header { backdrop-filter: blur(6px); box-shadow: 0 0 30px rgba(34,197,94,.12); }
+            .bg-slate-900, .bg-slate-950 { background-color: rgba(20,6,6,.82) !important; }
+            header { backdrop-filter: blur(6px); box-shadow: 0 0 30px rgba(239,68,68,.12); }
 
             /* ====== DERİNLİK KATMANI: süzülen ışık küreleri + doku (gerçek 3D değil ama cam/derinlik hissi, hafif ve mobilde de akıcı) ====== */
             .orbField { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
             .orb { position: absolute; border-radius: 50%; filter: blur(60px); will-change: transform; opacity: .5; }
-            .orb1 { width: 46vmax; height: 46vmax; left: -14vmax; top: -16vmax; background: radial-gradient(circle,rgba(74,222,128,.35),transparent 70%); animation: driftA 26s ease-in-out infinite; }
+            .orb1 { width: 46vmax; height: 46vmax; left: -14vmax; top: -16vmax; background: radial-gradient(circle,rgba(248,113,113,.35),transparent 70%); animation: driftA 26s ease-in-out infinite; }
             .orb2 { width: 38vmax; height: 38vmax; right: -12vmax; top: 10vmax; background: radial-gradient(circle,rgba(250,204,21,.22),transparent 70%); animation: driftB 32s ease-in-out infinite; }
-            .orb3 { width: 50vmax; height: 50vmax; left: 20vmax; bottom: -22vmax; background: radial-gradient(circle,rgba(16,185,129,.25),transparent 70%); animation: driftC 38s ease-in-out infinite; }
+            .orb3 { width: 50vmax; height: 50vmax; left: 20vmax; bottom: -22vmax; background: radial-gradient(circle,rgba(239,68,68,.25),transparent 70%); animation: driftC 38s ease-in-out infinite; }
             @keyframes driftA { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(6vmax,8vmax) scale(1.15); } }
             @keyframes driftB { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-7vmax,5vmax) scale(1.1); } }
             @keyframes driftC { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-4vmax,-9vmax) scale(1.08); } }
@@ -1095,9 +1127,9 @@ app.get('/', (req, res) => {
 
             /* ====== Ürün kartları: hafif kalkma + parlama, gerçek cam/VIP hissi ====== */
             .prodCard { transform: translateZ(0); transition: transform .35s cubic-bezier(.16,.84,.44,1), box-shadow .35s ease, border-color .35s ease; }
-            .prodCard:hover { transform: translateY(-5px); border-color: rgba(74,222,128,.55) !important; box-shadow: 0 16px 40px -12px rgba(16,185,129,.35), 0 0 0 1px rgba(250,204,21,.08); }
+            .prodCard:hover { transform: translateY(-5px); border-color: rgba(248,113,113,.55) !important; box-shadow: 0 16px 40px -12px rgba(239,68,68,.35), 0 0 0 1px rgba(250,204,21,.08); }
             .prodIcon { transition: transform .4s ease, box-shadow .4s ease; }
-            .prodCard:hover .prodIcon { transform: scale(1.08) rotate(-4deg); box-shadow: 0 0 22px rgba(74,222,128,.35); }
+            .prodCard:hover .prodIcon { transform: scale(1.08) rotate(-4deg); box-shadow: 0 0 22px rgba(248,113,113,.35); }
 
             /* ====== Işık geçişli butonlar ====== */
             .shineBtn { position: relative; overflow: hidden; }
@@ -1109,11 +1141,11 @@ app.get('/', (req, res) => {
             #activeOrderWrap.hasOrders #activeOrderHeading { display: flex; }
             .orderFlashCard { animation: orderGlow 2.2s ease-out 1; }
             @keyframes orderGlow {
-                0% { box-shadow: 0 0 0 0 rgba(74,222,128,.75), 0 0 40px rgba(74,222,128,.55); border-color: rgba(74,222,128,1); }
-                100% { box-shadow: 0 0 0 0 rgba(74,222,128,0), 0 0 0 rgba(74,222,128,0); }
+                0% { box-shadow: 0 0 0 0 rgba(248,113,113,.75), 0 0 40px rgba(248,113,113,.55); border-color: rgba(248,113,113,1); }
+                100% { box-shadow: 0 0 0 0 rgba(248,113,113,0), 0 0 0 rgba(248,113,113,0); }
             }
             #toastStack { position: fixed; top: 86px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; max-width: 92vw; }
-            .appToast { pointer-events: auto; background: linear-gradient(135deg,rgba(6,20,12,.96),rgba(4,12,8,.96)); border: 1px solid rgba(74,222,128,.55); box-shadow: 0 10px 36px -8px rgba(16,185,129,.5); color: #ecfdf5; padding: 14px 18px; border-radius: 14px; font-size: .9rem; font-weight: 600; display: flex; align-items: center; gap: 10px; animation: toastIn .35s ease, toastOut .4s ease 3.6s forwards; max-width: 360px; }
+            .appToast { pointer-events: auto; background: linear-gradient(135deg,rgba(24,6,6,.96),rgba(20,6,6,.96)); border: 1px solid rgba(248,113,113,.55); box-shadow: 0 10px 36px -8px rgba(239,68,68,.5); color: #fff5f5; padding: 14px 18px; border-radius: 14px; font-size: .9rem; font-weight: 600; display: flex; align-items: center; gap: 10px; animation: toastIn .35s ease, toastOut .4s ease 3.6s forwards; max-width: 360px; }
             @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
             @keyframes toastOut { to { opacity: 0; transform: translateX(40px); } }
             @media (max-width: 640px) {
@@ -1141,38 +1173,38 @@ app.get('/', (req, res) => {
         <template id="phoenixTpl">
             <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Anka amblemi">
             <defs>
-                <linearGradient id="gBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#eaffd6"/><stop offset=".45" stop-color="#4ade80"/><stop offset="1" stop-color="#065f46"/></linearGradient>
-                <linearGradient id="gWingR" x1="0" y1="0" x2="1" y2=".2"><stop offset="0" stop-color="#fff9db"/><stop offset=".4" stop-color="#facc15"/><stop offset=".75" stop-color="#22c55e"/><stop offset="1" stop-color="#064e3b"/></linearGradient>
-                <linearGradient id="gWingL" x1="0" y1="0" x2="1" y2=".2"><stop offset="0" stop-color="#fff9db"/><stop offset=".4" stop-color="#facc15"/><stop offset=".75" stop-color="#22c55e"/><stop offset="1" stop-color="#064e3b"/></linearGradient>
+                <linearGradient id="gBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1e0"/><stop offset=".45" stop-color="#f87171"/><stop offset="1" stop-color="#7f1d1d"/></linearGradient>
+                <linearGradient id="gWingR" x1="0" y1="0" x2="1" y2=".2"><stop offset="0" stop-color="#fff9db"/><stop offset=".4" stop-color="#facc15"/><stop offset=".75" stop-color="#ef4444"/><stop offset="1" stop-color="#7f1d1d"/></linearGradient>
+                <linearGradient id="gWingL" x1="0" y1="0" x2="1" y2=".2"><stop offset="0" stop-color="#fff9db"/><stop offset=".4" stop-color="#facc15"/><stop offset=".75" stop-color="#ef4444"/><stop offset="1" stop-color="#7f1d1d"/></linearGradient>
                 <filter id="eGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
             </defs>
-            <polygon points="200,8 362,100 362,284 200,376 38,284 38,100" fill="none" stroke="#22c55e" stroke-opacity=".35" stroke-width="2"/>
+            <polygon points="200,8 362,100 362,284 200,376 38,284 38,100" fill="none" stroke="#ef4444" stroke-opacity=".35" stroke-width="2"/>
             <polygon points="200,34 338,112 338,272 200,350 62,272 62,112" fill="none" stroke="#facc15" stroke-opacity=".25" stroke-width="1" stroke-dasharray="6 7"/>
             <g class="birdFloat" filter="url(#eGlow)">
               <g transform="translate(200 185)"><g class="wingR">
-                <polygon points="0,0 150,-64 128,-28 150,-2 118,6 136,24 100,22 108,44 76,32 72,54 50,30 36,40" fill="url(#gWingR)" stroke="#eaffd6" stroke-opacity=".5" stroke-width="1.5"/>
+                <polygon points="0,0 150,-64 128,-28 150,-2 118,6 136,24 100,22 108,44 76,32 72,54 50,30 36,40" fill="url(#gWingR)" stroke="#fff1e0" stroke-opacity=".5" stroke-width="1.5"/>
               </g></g>
               <g transform="translate(200 185) scale(-1 1)"><g class="wingR">
-                <polygon points="0,0 150,-64 128,-28 150,-2 118,6 136,24 100,22 108,44 76,32 72,54 50,30 36,40" fill="url(#gWingL)" stroke="#eaffd6" stroke-opacity=".5" stroke-width="1.5"/>
+                <polygon points="0,0 150,-64 128,-28 150,-2 118,6 136,24 100,22 108,44 76,32 72,54 50,30 36,40" fill="url(#gWingL)" stroke="#fff1e0" stroke-opacity=".5" stroke-width="1.5"/>
               </g></g>
               <g transform="translate(200 220)"><g class="tailE">
                 <polygon points="0,0 -40,120 -14,70 0,150 14,70 40,120" fill="url(#gBody)" opacity=".9"/>
               </g></g>
-              <polygon points="200,96 222,150 212,230 200,268 188,230 178,150" fill="url(#gBody)" stroke="#eaffd6" stroke-opacity=".6" stroke-width="1.5"/>
-              <polygon points="200,56 214,96 200,112 186,96" fill="#eaffd6"/>
+              <polygon points="200,96 222,150 212,230 200,268 188,230 178,150" fill="url(#gBody)" stroke="#fff1e0" stroke-opacity=".6" stroke-width="1.5"/>
+              <polygon points="200,56 214,96 200,112 186,96" fill="#fff1e0"/>
               <polygon points="200,34 207,58 200,70 193,58" fill="#facc15"/>
             </g>
             <g class="sparkLayer">
-              <circle class="spark" cx="130" cy="300" r="2.2" fill="#86efac" style="animation-delay:.2s"/>
+              <circle class="spark" cx="130" cy="300" r="2.2" fill="#fca5a5" style="animation-delay:.2s"/>
               <circle class="spark" cx="270" cy="300" r="2.2" fill="#fde047" style="animation-delay:1s"/>
-              <circle class="spark" cx="200" cy="330" r="2" fill="#86efac" style="animation-delay:1.8s"/>
+              <circle class="spark" cx="200" cy="330" r="2" fill="#fca5a5" style="animation-delay:1.8s"/>
               <circle class="spark" cx="160" cy="60" r="1.8" fill="#fde047" style="animation-delay:.6s"/>
-              <circle class="spark" cx="245" cy="70" r="1.8" fill="#86efac" style="animation-delay:1.4s"/>
+              <circle class="spark" cx="245" cy="70" r="1.8" fill="#fca5a5" style="animation-delay:1.4s"/>
             </g>
             </svg>
         </template>
 
-        <div id="intro" style="position:fixed;inset:0;z-index:100;background:radial-gradient(ellipse at 50% 35%,rgba(4,21,12,.92) 0%,rgba(2,7,5,.96) 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .9s ease;cursor:pointer;overflow:hidden" onclick="closeIntro()">
+        <div id="intro" style="position:fixed;inset:0;z-index:100;background:radial-gradient(ellipse at 50% 35%,rgba(21,4,4,.92) 0%,rgba(7,2,2,.96) 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .9s ease;cursor:pointer;overflow:hidden" onclick="closeIntro()">
             <div class="introFlash"></div>
             <div class="introScan"></div>
             <div id="introPing" class="pingRing" style="top:50%;left:50%;margin:-45px 0 0 -45px"></div>
@@ -1181,34 +1213,34 @@ app.get('/', (req, res) => {
             <span class="vipBadge introStage" style="z-index:1;animation-delay:.15s;letter-spacing:3px">VIP ERİŞİM</span>
             <div id="introPhoenix" class="phoenixWrap introStage" style="width:min(260px,62vw);z-index:1;animation-delay:.3s"></div>
             <h1 class="anka text-4xl md:text-6xl font-black tracking-widest mt-4 introStage" style="z-index:1;animation-delay:.55s">ANKA SMS</h1>
-            <p class="text-emerald-200/60 text-xs font-mono mt-1 tracking-widest introStage" style="z-index:1;animation-delay:.7s">KÜLLERİNDEN DOĞAN GÜVENLİ SİSTEM</p>
-            <div id="introLog" class="introStage" style="z-index:1;animation-delay:.85s;margin-top:22px;font-family:monospace;color:#4ade80;font-size:13px;min-height:70px;text-align:center"></div>
-            <div class="introStage" style="z-index:1;animation-delay:.85s;margin-top:10px;width:260px;height:3px;background:rgba(74,222,128,.15);border-radius:4px;overflow:hidden"><div id="introBar" style="height:100%;width:0;background:linear-gradient(90deg,#facc15,#4ade80);transition:width .6s ease;box-shadow:0 0 10px #4ade80"></div></div>
-            <p class="text-emerald-200/30 text-[10px] mt-5 introStage" style="z-index:1;animation-delay:1s">(geçmek için dokun)</p>
+            <p class="text-red-200/60 text-xs font-mono mt-1 tracking-widest introStage" style="z-index:1;animation-delay:.7s">KÜLLERİNDEN DOĞAN GÜVENLİ SİSTEM</p>
+            <div id="introLog" class="introStage" style="z-index:1;animation-delay:.85s;margin-top:22px;font-family:monospace;color:#f87171;font-size:13px;min-height:70px;text-align:center"></div>
+            <div class="introStage" style="z-index:1;animation-delay:.85s;margin-top:10px;width:260px;height:3px;background:rgba(248,113,113,.15);border-radius:4px;overflow:hidden"><div id="introBar" style="height:100%;width:0;background:linear-gradient(90deg,#facc15,#f87171);transition:width .6s ease;box-shadow:0 0 10px #f87171"></div></div>
+            <p class="text-red-200/30 text-[10px] mt-5 introStage" style="z-index:1;animation-delay:1s">(geçmek için dokun)</p>
         </div>
 
         <div class="max-w-5xl mx-auto w-full p-4 relative z-10">
-            <header class="flex justify-between items-center py-4 px-6 border border-emerald-500/25 mb-6 rounded-2xl shadow-2xl">
+            <header class="flex justify-between items-center py-4 px-6 border border-red-500/25 mb-6 rounded-2xl shadow-2xl">
                 <div class="flex items-center gap-3">
-                    <div class="bg-emerald-500/15 p-2.5 rounded-xl border border-emerald-500/40">
-                        <i class="fa-solid fa-gem text-xl" style="color:#facc15;text-shadow:0 0 14px #4ade80"></i>
+                    <div class="bg-red-500/15 p-2.5 rounded-xl border border-red-500/40">
+                        <i class="fa-solid fa-gem text-xl" style="color:#facc15;text-shadow:0 0 14px #f87171"></i>
                     </div>
                     <div>
                         <h1 class="anka text-2xl font-black tracking-widest inline-block">ANKA SMS</h1><span class="vipBadge">VIP</span>
-                        <p class="text-[10px] text-emerald-300/60 font-mono">GÜVENLİ SANAL NUMARA SİSTEMİ</p>
+                        <p class="text-[10px] text-red-300/60 font-mono">GÜVENLİ SANAL NUMARA SİSTEMİ</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-2 sm:gap-4 flex-wrap justify-end">
-                    <div id="contactCapsule" style="display:flex;align-items:center;gap:6px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.3);border-radius:999px;padding:5px 10px">
+                    <div id="contactCapsule" style="display:flex;align-items:center;gap:6px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.3);border-radius:999px;padding:5px 10px">
                         <a href="https://t.me/vipankaa" target="_blank" title="Telegram" style="color:#60a5fa;font-size:15px;line-height:0"><i class="fa-brands fa-telegram"></i></a>
-                        <span style="width:1px;height:14px;background:rgba(74,222,128,.25)"></span>
-                        <a href="https://wa.me/573181006792" target="_blank" title="WhatsApp" style="color:#4ade80;font-size:15px;line-height:0"><i class="fa-brands fa-whatsapp"></i></a>
+                        <span style="width:1px;height:14px;background:rgba(248,113,113,.25)"></span>
+                        <a href="https://wa.me/573181006792" target="_blank" title="WhatsApp" style="color:#f87171;font-size:15px;line-height:0"><i class="fa-brands fa-whatsapp"></i></a>
                     </div>
                     <div id="userArea" class="flex items-center gap-2 sm:gap-4"></div>
                 </div>
             </header>
             <main id="mainContent"></main>
-            <p style="text-align:center;color:rgba(74,222,128,.25);font-size:10px;font-family:monospace;margin-top:30px">sürüm: ${APP_VERSION}</p>
+            <p style="text-align:center;color:rgba(248,113,113,.25);font-size:10px;font-family:monospace;margin-top:30px">sürüm: ${APP_VERSION}</p>
         </div>
 
         <div id="authModal" class="fixed inset-0 bg-black/85 flex items-center justify-center hidden z-50" onclick="if(event.target===this) closeAuthModal()">
@@ -1216,10 +1248,10 @@ app.get('/', (req, res) => {
                 <button onclick="closeAuthModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white" style="z-index:5"><i class="fa-solid fa-xmark text-xl"></i></button>
                 <div class="text-center mb-6"><h2 id="authTitle" class="text-2xl font-black text-white">Giriş Yap</h2></div>
                 <div class="space-y-4">
-                    <input type="text" id="authUsername" placeholder="Kullanıcı Adı" class="w-full bg-black/40 border border-emerald-500/20 rounded-xl p-3 text-white focus:border-emerald-500">
-                    <input type="password" id="authPassword" placeholder="Şifre" class="w-full bg-black/40 border border-emerald-500/20 rounded-xl p-3 text-white focus:border-emerald-500">
-                    <button onclick="handleAuthSubmit()" id="authSubmitBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition">Giriş Yap</button>
-                    <p class="text-center text-sm text-slate-400"><span onclick="switchAuthMode()" id="switchText" class="text-emerald-400 cursor-pointer underline">Kayıt Ol</span></p>
+                    <input type="text" id="authUsername" placeholder="Kullanıcı Adı" class="w-full bg-black/40 border border-red-500/20 rounded-xl p-3 text-white focus:border-red-500">
+                    <input type="password" id="authPassword" placeholder="Şifre" class="w-full bg-black/40 border border-red-500/20 rounded-xl p-3 text-white focus:border-red-500">
+                    <button onclick="handleAuthSubmit()" id="authSubmitBtn" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition">Giriş Yap</button>
+                    <p class="text-center text-sm text-slate-400"><span onclick="switchAuthMode()" id="switchText" class="text-red-400 cursor-pointer underline">Kayıt Ol</span></p>
                 </div>
             </div>
         </div>
@@ -1227,17 +1259,17 @@ app.get('/', (req, res) => {
         <div id="depositModal" class="fixed inset-0 bg-black/85 flex items-center justify-center hidden z-50" onclick="if(event.target===this) closeDeposit()">
             <div class="glassCard p-8 rounded-3xl w-full max-w-md relative shadow-2xl" onclick="event.stopPropagation()">
                 <button onclick="closeDeposit()" class="absolute top-4 right-4 text-slate-400 hover:text-white" style="z-index:5"><i class="fa-solid fa-xmark text-xl"></i></button>
-                <h2 class="text-xl font-black mb-4 text-emerald-400"><i class="fa-solid fa-wallet"></i> Bakiye Yükle (IBAN)</h2>
+                <h2 class="text-xl font-black mb-4 text-red-400"><i class="fa-solid fa-wallet"></i> Bakiye Yükle (IBAN)</h2>
                 <div class="space-y-4 text-sm text-slate-300">
-                    <div class="bg-black/40 p-4 rounded-xl border border-emerald-500/20">
+                    <div class="bg-black/40 p-4 rounded-xl border border-red-500/20">
                         <p class="text-slate-500 text-xs">Banka IBAN:</p>
-                        <p class="font-mono text-emerald-400 font-bold text-base select-all">TR62 0006 2000 5000 0006 8107 73</p>
+                        <p class="font-mono text-red-400 font-bold text-base select-all">TR62 0006 2000 5000 0006 8107 73</p>
                         <p class="text-slate-500 text-xs mt-2">Alıcı:</p>
                         <p class="font-bold text-white text-base">Resul Sakal</p>
                     </div>
-                    <input type="text" id="depositSender" placeholder="Gönderen Ad Soyad" class="w-full bg-black/40 border border-emerald-500/20 rounded-xl p-3 text-white">
-                    <input type="number" id="depositAmount" placeholder="Tutar (TL)" class="w-full bg-black/40 border border-emerald-500/20 rounded-xl p-3 text-white">
-                    <button onclick="submitDeposit()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl">Bildirim Gönder</button>
+                    <input type="text" id="depositSender" placeholder="Gönderen Ad Soyad" class="w-full bg-black/40 border border-red-500/20 rounded-xl p-3 text-white">
+                    <input type="number" id="depositAmount" placeholder="Tutar (TL)" class="w-full bg-black/40 border border-red-500/20 rounded-xl p-3 text-white">
+                    <button onclick="submitDeposit()" class="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl">Bildirim Gönder</button>
                 </div>
             </div>
         </div>
@@ -1341,24 +1373,24 @@ app.get('/', (req, res) => {
                     area.innerHTML =
                         '<div class="flex items-center gap-3">' +
                         '<span class="text-sm font-medium">@<strong class="text-white">' + currentUser + '</strong></span>' +
-                        '<span id="userBalance" class="bg-emerald-500/10 text-emerald-300 px-3.5 py-1.5 rounded-full text-xs font-bold border border-emerald-500/30">0.00 TL</span>' +
-                        (currentRole === 'admin' && adminToken ? '<button onclick="openAdminPanel()" class="bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 rounded-xl text-xs font-bold">Admin Panel</button>' : '') +
+                        '<span id="userBalance" class="bg-red-500/10 text-red-300 px-3.5 py-1.5 rounded-full text-xs font-bold border border-red-500/30">0.00 TL</span>' +
+                        (currentRole === 'admin' && adminToken ? '<button onclick="openAdminPanel()" class="bg-red-600 hover:bg-red-500 px-3.5 py-1.5 rounded-xl text-xs font-bold">Admin Panel</button>' : '') +
                         '<button onclick="logout()" class="text-red-400 text-sm p-2"><i class="fa-solid fa-right-from-bracket"></i></button>' +
                         '</div>';
                     fetchBalance();
                 } else {
                     area.innerHTML =
-                        '<button onclick="openAuthModal(\\'login\\')" class="bg-emerald-600 hover:bg-emerald-500 px-5 py-2.5 rounded-xl text-sm font-bold">Giriş Yap</button>' +
-                        '<button onclick="openAuthModal(\\'register\\')" class="bg-black/40 border border-emerald-500/30 px-5 py-2.5 rounded-xl text-sm font-bold">Kayıt Ol</button>';
+                        '<button onclick="openAuthModal(\\'login\\')" class="bg-red-600 hover:bg-red-500 px-5 py-2.5 rounded-xl text-sm font-bold">Giriş Yap</button>' +
+                        '<button onclick="openAuthModal(\\'register\\')" class="bg-black/40 border border-red-500/30 px-5 py-2.5 rounded-xl text-sm font-bold">Kayıt Ol</button>';
                     document.getElementById('mainContent').innerHTML =
                         '<div class="text-center py-16 glassCard vipCard rounded-3xl p-8 fadeUp">' +
                         '<div class="phoenixWrap">' + phoenixHTML() + '</div>' +
                         '<div class="mb-3 mt-2"><span class="vipBadge">VIP ÜYELİK PANELİ</span></div>' +
                         '<h2 class="anka text-5xl md:text-6xl font-black mb-4 font-mono tracking-widest">ANKA SMS</h2>' +
-                        '<p class="text-emerald-200/70 font-mono mb-8">Anlık sanal numara &bull; Hızlı SMS kodu &bull; 7/24 aktif<span class="blink">_</span></p>' +
-                        '<div class="flex gap-3 justify-center"><button onclick="openAuthModal(\\'login\\')" class="bg-emerald-600 hover:bg-emerald-500 px-8 py-3 rounded-xl font-bold">Giriş Yap</button>' +
-                        '<button onclick="openAuthModal(\\'register\\')" class="bg-black/40 border border-emerald-500/40 hover:bg-emerald-900/30 px-8 py-3 rounded-xl font-bold text-emerald-300">Kayıt Ol</button></div>' +
-                        '<p class="text-emerald-200/40 text-xs mt-6">Destek: Telegram <a href="https://t.me/vipankaa" target="_blank" class="text-emerald-400 underline">@vipankaa</a> &bull; WhatsApp <a href="https://wa.me/573181006792" target="_blank" class="text-emerald-400 underline">+57 318 100 6792</a></p>' +
+                        '<p class="text-red-200/70 font-mono mb-8">Anlık sanal numara &bull; Hızlı SMS kodu &bull; 7/24 aktif<span class="blink">_</span></p>' +
+                        '<div class="flex gap-3 justify-center"><button onclick="openAuthModal(\\'login\\')" class="bg-red-600 hover:bg-red-500 px-8 py-3 rounded-xl font-bold">Giriş Yap</button>' +
+                        '<button onclick="openAuthModal(\\'register\\')" class="bg-black/40 border border-red-500/40 hover:bg-red-900/30 px-8 py-3 rounded-xl font-bold text-red-300">Kayıt Ol</button></div>' +
+                        '<p class="text-red-200/40 text-xs mt-6">Destek: Telegram <a href="https://t.me/vipankaa" target="_blank" class="text-red-400 underline">@vipankaa</a> &bull; WhatsApp <a href="https://wa.me/573181006792" target="_blank" class="text-red-400 underline">+57 318 100 6792</a></p>' +
                         '</div>';
                 }
             }
@@ -1374,11 +1406,11 @@ app.get('/', (req, res) => {
             function buildMain() {
                 document.getElementById('mainContent').innerHTML =
                     '<div id="activeOrderWrap" class="mb-8">' +
-                    '<div id="activeOrderHeading" class="items-center gap-2 mb-3" style="display:none;"><i class="fa-solid fa-signal text-emerald-400"></i><h3 class="font-black text-lg tracking-wide">Aktif Numaralarım</h3></div>' +
+                    '<div id="activeOrderHeading" class="items-center gap-2 mb-3" style="display:none;"><i class="fa-solid fa-signal text-red-400"></i><h3 class="font-black text-lg tracking-wide">Aktif Numaralarım</h3></div>' +
                     '<div id="activeOrderArea"></div>' +
                     '</div>' +
                     '<div id="servicesGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"><p class="text-slate-400 text-sm">Yükleniyor...</p></div>' +
-                    '<div class="mt-6 flex justify-end"><button onclick="openDeposit()" class="bg-emerald-600 hover:bg-emerald-500 px-6 py-3 rounded-xl font-bold text-sm"><i class="fa-solid fa-wallet mr-2"></i> Bakiye Yükle</button></div>' +
+                    '<div class="mt-6 flex justify-end"><button onclick="openDeposit()" class="bg-red-600 hover:bg-red-500 px-6 py-3 rounded-xl font-bold text-sm"><i class="fa-solid fa-wallet mr-2"></i> Bakiye Yükle</button></div>' +
                     '<div id="smmSection" class="mt-8"></div>' +
                     '<div id="manualSection" class="mt-8"></div>';
             }
@@ -1388,7 +1420,7 @@ app.get('/', (req, res) => {
                 if (!stack) return;
                 var t = document.createElement('div');
                 t.className = 'appToast';
-                t.innerHTML = '<i class="fa-solid ' + (icon || 'fa-circle-check') + ' text-emerald-400 text-lg"></i><span>' + message + '</span>';
+                t.innerHTML = '<i class="fa-solid ' + (icon || 'fa-circle-check') + ' text-red-400 text-lg"></i><span>' + message + '</span>';
                 stack.appendChild(t);
                 setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 4100);
             }
@@ -1412,13 +1444,13 @@ app.get('/', (req, res) => {
             }
 
             function renderServiceCard(s) {
-                return '<div class="prodCard bg-black/40 border border-emerald-500/15 p-5 rounded-2xl flex items-center justify-between shadow-xl transition">' +
+                return '<div class="prodCard bg-black/40 border border-red-500/15 p-5 rounded-2xl flex items-center justify-between shadow-xl transition">' +
                     '<div class="flex items-center gap-4 min-w-0">' +
-                    '<div class="' + s.bg + ' ' + s.color + ' prodIcon w-12 h-12 rounded-xl flex items-center justify-center text-xl border border-emerald-500/15 shrink-0"><i class="' + (s.iconSet || 'fa-brands') + ' ' + s.icon + '"></i></div>' +
+                    '<div class="' + s.bg + ' ' + s.color + ' prodIcon w-12 h-12 rounded-xl flex items-center justify-center text-xl border border-red-500/15 shrink-0"><i class="' + (s.iconSet || 'fa-brands') + ' ' + s.icon + '"></i></div>' +
                     '<div class="min-w-0"><h3 class="font-bold text-sm text-white truncate">' + s.name + '</h3>' +
-                    '<p class="text-emerald-300 font-bold text-sm">' + s.price.toFixed(2) + ' TL</p></div>' +
+                    '<p class="text-red-300 font-bold text-sm">' + s.price.toFixed(2) + ' TL</p></div>' +
                     '</div>' +
-                    '<button data-id="' + s.id + '" onclick="buyNumber(this)" class="shineBtn bg-emerald-600 hover:bg-emerald-500 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg transition shrink-0">Numara Al</button>' +
+                    '<button data-id="' + s.id + '" onclick="buyNumber(this)" class="shineBtn bg-red-600 hover:bg-red-500 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg transition shrink-0">Numara Al</button>' +
                     '</div>';
             }
 
@@ -1467,9 +1499,9 @@ app.get('/', (req, res) => {
                     '<div class="min-w-0"><h3 class="font-bold text-sm text-white truncate">' + s.name + '</h3>' +
                     '<p class="text-pink-300 font-bold text-xs">1000 adet: ' + s.pricePerThousand.toFixed(2) + ' TL</p></div>' +
                     '</div>' +
-                    '<input id="smmLink_' + s.id + '" placeholder="' + s.linkLabel + '" class="w-full bg-black/40 border border-emerald-500/20 rounded-lg px-3 py-2 text-xs text-white mb-2">' +
+                    '<input id="smmLink_' + s.id + '" placeholder="' + s.linkLabel + '" class="w-full bg-black/40 border border-red-500/20 rounded-lg px-3 py-2 text-xs text-white mb-2">' +
                     '<div class="flex gap-2 items-center">' +
-                    '<input id="smmQty_' + s.id + '" type="number" min="' + s.min + '" max="' + s.max + '" placeholder="Miktar (' + s.min + '-' + s.max + ')" oninput="updateSmmPrice(\\'' + s.id + '\\',' + s.pricePerThousand + ')" class="flex-1 bg-black/40 border border-emerald-500/20 rounded-lg px-3 py-2 text-xs text-white">' +
+                    '<input id="smmQty_' + s.id + '" type="number" min="' + s.min + '" max="' + s.max + '" placeholder="Miktar (' + s.min + '-' + s.max + ')" oninput="updateSmmPrice(\\'' + s.id + '\\',' + s.pricePerThousand + ')" class="flex-1 bg-black/40 border border-red-500/20 rounded-lg px-3 py-2 text-xs text-white">' +
                     '<button onclick="buySmm(\\'' + s.id + '\\')" class="shineBtn bg-pink-600 hover:bg-pink-500 px-4 py-2 rounded-xl text-xs font-bold shadow-lg transition shrink-0">Sipariş Ver</button>' +
                     '</div>' +
                     '<p id="smmPrice_' + s.id + '" class="text-[11px] text-slate-400 mt-1.5"></p>' +
@@ -1535,15 +1567,15 @@ app.get('/', (req, res) => {
 
                 var card = document.createElement('div');
                 card.id = 'order_' + id;
-                card.className = 'bg-black/40 border border-emerald-500 p-6 rounded-2xl shadow-2xl relative mb-4' + (isNew ? ' orderFlashCard' : '');
+                card.className = 'bg-black/40 border border-red-500 p-6 rounded-2xl shadow-2xl relative mb-4' + (isNew ? ' orderFlashCard' : '');
                 card.innerHTML =
-                    '<h3 class="font-bold text-emerald-400 text-lg mb-3"><i class="fa-solid fa-circle-check mr-2"></i> ' + (productName || 'Numara') + '</h3>' +
+                    '<h3 class="font-bold text-red-400 text-lg mb-3"><i class="fa-solid fa-circle-check mr-2"></i> ' + (productName || 'Numara') + '</h3>' +
                     '<p class="text-sm text-slate-300">Numara: <strong class="text-white font-mono text-xl select-all">' + phone + '</strong></p>' +
-                    '<p class="text-sm text-slate-300 mt-2">SMS Kod: <strong id="smsCode_' + id + '" class="text-emerald-400 font-mono text-xl ' + (done ? '' : 'animate-pulse') + '">' + (done ? doneCode : 'Bekleniyor...') + '</strong></p>' +
-                    '<div class="mt-4 flex items-center justify-between border-t border-emerald-500/20 pt-4">' +
-                    '<span class="text-xs text-slate-400">' + (done ? '' : 'Kod Süresi: <strong id="timerDisplay_' + id + '" class="text-emerald-400 font-mono text-sm">--:--</strong>') + '</span>' +
+                    '<p class="text-sm text-slate-300 mt-2">SMS Kod: <strong id="smsCode_' + id + '" class="text-red-400 font-mono text-xl ' + (done ? '' : 'animate-pulse') + '">' + (done ? doneCode : 'Bekleniyor...') + '</strong></p>' +
+                    '<div class="mt-4 flex items-center justify-between border-t border-red-500/20 pt-4">' +
+                    '<span class="text-xs text-slate-400">' + (done ? '' : 'Kod Süresi: <strong id="timerDisplay_' + id + '" class="text-red-400 font-mono text-sm">--:--</strong>') + '</span>' +
                     '<div id="actionButtons_' + id + '">' + (done
-                        ? '<span class="text-emerald-400 font-bold text-xs"><i class="fa-solid fa-check"></i> Tamamlandı</span>'
+                        ? '<span class="text-red-400 font-bold text-xs"><i class="fa-solid fa-check"></i> Tamamlandı</span>'
                         : '<button data-id="' + id + '" onclick="cancelBtn(this)" class="bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/40 px-4 py-2 rounded-xl text-xs font-bold transition">Değiştir / İptal Et</button>') +
                     '</div></div>';
                 area.insertBefore(card, area.firstChild);
@@ -1569,7 +1601,7 @@ app.get('/', (req, res) => {
                             var codeEl = document.getElementById('smsCode_' + id);
                             if (codeEl) { codeEl.innerText = data.code; codeEl.classList.remove('animate-pulse'); }
                             var actionArea = document.getElementById('actionButtons_' + id);
-                            if (actionArea) actionArea.innerHTML = '<span class="text-emerald-400 font-bold text-xs"><i class="fa-solid fa-check"></i> Tamamlandı</span>';
+                            if (actionArea) actionArea.innerHTML = '<span class="text-red-400 font-bold text-xs"><i class="fa-solid fa-check"></i> Tamamlandı</span>';
                             var tEl = document.getElementById('timerDisplay_' + id);
                             if (tEl) tEl.parentNode.innerHTML = '';
                             var cardEl = document.getElementById('order_' + id);
@@ -1669,14 +1701,14 @@ app.get('/', (req, res) => {
                 var pendingHtml = '';
                 data.payments.filter(function (p) { return p.status === 'pending'; }).forEach(function (p) {
                     pendingHtml += '<div class="bg-black/40 p-4 rounded-xl mb-2 flex justify-between items-center"><span>' + p.username + ' - ' + p.amount + ' TL (' + p.senderName + ') <span class="text-slate-500 text-xs">' + p.time + '</span></span><div>' +
-                        '<button onclick="processPay(\\'' + p.id + '\\',\\'approve\\')" class="bg-emerald-600 px-3 py-1 rounded text-xs font-bold mr-1">Onayla</button>' +
+                        '<button onclick="processPay(\\'' + p.id + '\\',\\'approve\\')" class="bg-red-600 px-3 py-1 rounded text-xs font-bold mr-1">Onayla</button>' +
                         '<button onclick="processPay(\\'' + p.id + '\\',\\'reject\\')" class="bg-red-600 px-3 py-1 rounded text-xs font-bold mr-1">Reddet</button>' +
                         '<button onclick="processPay(\\'' + p.id + '\\',\\'reject_ban\\')" class="bg-red-800 px-3 py-1 rounded text-xs font-bold" title="Ödeme yapmadan sahte bildirim gönderenler için">Reddet + Banla</button></div></div>';
                 });
                 if (!pendingHtml) pendingHtml = '<p class="text-sm text-slate-500">Bekleyen ödeme yok.</p>';
 
                 var allPayHtml = '<div class="max-h-56 overflow-y-auto space-y-1">' + data.payments.map(function (p) {
-                    var c = p.status === 'approved' ? 'text-emerald-400' : (p.status === 'rejected' ? 'text-red-400' : 'text-emerald-400');
+                    var c = p.status === 'approved' ? 'text-red-400' : (p.status === 'rejected' ? 'text-red-400' : 'text-red-400');
                     return '<div class="bg-black/30 px-3 py-2 rounded-lg text-xs flex justify-between"><span>' + p.username + '</span><span>' + p.amount + ' TL</span><span class="' + c + '">' + p.status + '</span><span class="text-slate-500">' + p.time + '</span></div>';
                 }).join('') + '</div>';
                 if (!data.payments.length) allPayHtml = '<p class="text-sm text-slate-500">Henüz ödeme yok.</p>';
@@ -1690,19 +1722,19 @@ app.get('/', (req, res) => {
                         '<span>' + u.balance.toFixed(2) + ' TL</span>' +
                         '<span class="text-slate-500">' + u.role + '</span>' +
                         '<span class="text-slate-500">' + u.registeredAt + '</span>' +
-                        '<input id="balAdj_' + u.username + '" placeholder="+50 / -20" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white w-20">' +
+                        '<input id="balAdj_' + u.username + '" placeholder="+50 / -20" class="bg-black/40 border border-red-500/20 rounded px-2 py-1 text-xs text-white w-20">' +
                         '<button onclick="adjustBalance(\\'' + u.username + '\\')" class="bg-blue-600 px-2 py-1 rounded text-xs font-bold">Uygula</button>' +
                         banBtn +
                         '</div>';
                 }).join('') + '</div>';
 
                 var loginsHtml = '<div class="max-h-56 overflow-y-auto space-y-1">' + data.logins.map(function (l) {
-                    return '<div class="bg-black/30 px-3 py-2 rounded-lg text-xs flex flex-wrap justify-between gap-1"><span class="font-bold text-white">' + l.username + '</span><span class="text-slate-400 font-mono">' + l.ip + '</span><span class="text-emerald-400">' + (l.source || '-') + '</span><span class="text-slate-500">' + l.time + '</span></div>';
+                    return '<div class="bg-black/30 px-3 py-2 rounded-lg text-xs flex flex-wrap justify-between gap-1"><span class="font-bold text-white">' + l.username + '</span><span class="text-slate-400 font-mono">' + l.ip + '</span><span class="text-red-400">' + (l.source || '-') + '</span><span class="text-slate-500">' + l.time + '</span></div>';
                 }).join('') + '</div>';
                 if (!data.logins.length) loginsHtml = '<p class="text-sm text-slate-500">Henüz giriş kaydı yok.</p>';
 
                 var visitorsHtml = '<div class="max-h-56 overflow-y-auto space-y-1">' + (data.visitorList || []).map(function (v) {
-                    return '<div class="bg-black/30 px-3 py-2 rounded-lg text-xs flex flex-wrap justify-between gap-1"><span class="text-slate-400 font-mono">' + v.ip + '</span><span class="text-emerald-400 font-bold">' + v.source + '</span><span class="text-slate-500">' + v.time + '</span></div>';
+                    return '<div class="bg-black/30 px-3 py-2 rounded-lg text-xs flex flex-wrap justify-between gap-1"><span class="text-slate-400 font-mono">' + v.ip + '</span><span class="text-red-400 font-bold">' + v.source + '</span><span class="text-slate-500">' + v.time + '</span></div>';
                 }).join('') + '</div>';
                 if (!data.visitorList || !data.visitorList.length) visitorsHtml = '<p class="text-sm text-slate-500">Henüz ziyaretçi kaydı yok.</p>';
 
@@ -1714,8 +1746,8 @@ app.get('/', (req, res) => {
                 var supportHtml = '<div class="space-y-2">' + data.supportChats.map(function (c) {
                     return '<div class="bg-black/30 p-3 rounded-lg text-xs"><div class="flex justify-between mb-1"><span class="font-bold text-white">' + c.username + '</span><span class="text-slate-500">' + (c.last ? c.last.time : '') + '</span></div>' +
                         '<div class="text-slate-400 mb-2">' + (c.last ? c.last.text.replace(/</g, '&lt;') : '') + '</div>' +
-                        '<div class="flex gap-1"><input id="adminReply_' + c.username + '" placeholder="Cevap yaz..." class="flex-1 bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white">' +
-                        '<button onclick="adminReplySupport(\\'' + c.username + '\\')" class="bg-emerald-600 px-3 rounded text-xs font-bold">Gönder</button></div></div>';
+                        '<div class="flex gap-1"><input id="adminReply_' + c.username + '" placeholder="Cevap yaz..." class="flex-1 bg-black/40 border border-red-500/20 rounded px-2 py-1 text-xs text-white">' +
+                        '<button onclick="adminReplySupport(\\'' + c.username + '\\')" class="bg-red-600 px-3 rounded text-xs font-bold">Gönder</button></div></div>';
                 }).join('') + '</div>';
                 if (!data.supportChats.length) supportHtml = '<p class="text-sm text-slate-500">Henüz destek mesajı yok.</p>';
 
@@ -1723,26 +1755,26 @@ app.get('/', (req, res) => {
                 var svcData = await svcRes.json();
                 var serviceCodesHtml = '<p class="text-xs text-slate-500 mb-2">Yeni ürünlerin sağlayıcıdaki gerçek servis kodu isimle otomatik bulunur. Yanlış/eksikse buradan elle düzeltebilirsin.</p><div class="max-h-56 overflow-y-auto space-y-1">' + (svcData.list || []).map(function (s) {
                     return '<div class="bg-black/30 px-3 py-2 rounded-lg text-xs flex flex-wrap items-center gap-2"><span class="font-bold text-white flex-1 min-w-[120px]">' + s.name + '</span>' +
-                        '<span class="' + (s.confirmed ? 'text-emerald-400' : 'text-amber-400') + '">' + s.code + (s.confirmed ? ' (bulundu)' : ' (tahmin)') + '</span>' +
-                        '<input id="svcCode_' + s.id + '" placeholder="elle kod gir" value="' + s.override + '" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white w-28">' +
-                        '<button onclick="saveServiceCode(\\'' + s.id + '\\')" class="bg-emerald-600 px-3 py-1 rounded text-xs font-bold">Kaydet</button></div>';
+                        '<span class="' + (s.confirmed ? 'text-red-400' : 'text-amber-400') + '">' + s.code + (s.confirmed ? ' (bulundu)' : ' (tahmin)') + '</span>' +
+                        '<input id="svcCode_' + s.id + '" placeholder="elle kod gir" value="' + s.override + '" class="bg-black/40 border border-red-500/20 rounded px-2 py-1 text-xs text-white w-28">' +
+                        '<button onclick="saveServiceCode(\\'' + s.id + '\\')" class="bg-red-600 px-3 py-1 rounded text-xs font-bold">Kaydet</button></div>';
                 }).join('') + '</div>';
 
                 var smmConfigHtml = '<p class="text-xs text-slate-500 mb-2">Service ID\\'yi aşağıdaki canlı arama kutusundan bul (örn. "instagram takip" yaz), sağlayıcı panelinden fiyatı 1000 adet başına görüp üzerine kar koyarak buraya gir. Ayarlanmayan ürün müşteride görünmez.</p>' +
                     '<div class="flex flex-wrap gap-2 items-center mb-3">' +
-                    '<input id="smmSearchQ" placeholder="sağlayıcı servislerinde ara (örn: instagram takip)" class="flex-1 min-w-[200px] bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white">' +
+                    '<input id="smmSearchQ" placeholder="sağlayıcı servislerinde ara (örn: instagram takip)" class="flex-1 min-w-[200px] bg-black/40 border border-red-500/20 rounded px-2 py-1 text-xs text-white">' +
                     '<button onclick="searchSmmServices()" class="bg-blue-600 px-3 py-1 rounded text-xs font-bold">Ara</button>' +
                     '</div>' +
                     '<div id="smmSearchResult" class="text-xs text-slate-400 mb-4"></div>' +
                     '<div class="space-y-2">' + (data.smmConfig || []).map(function (c) {
                         return '<div class="bg-black/30 px-3 py-2 rounded-lg text-xs flex flex-wrap items-center gap-2">' +
                             '<span class="font-bold text-white flex-1 min-w-[110px]">' + c.name + '</span>' +
-                            '<input id="smmSvc_' + c.id + '" placeholder="service ID" value="' + (c.serviceId || '') + '" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white w-24">' +
-                            '<input id="smmPrice_cfg_' + c.id + '" type="number" placeholder="TL/1000" value="' + (c.pricePerThousand || '') + '" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white w-20">' +
-                            '<input id="smmMin_' + c.id + '" type="number" placeholder="min" value="' + (c.min || 100) + '" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white w-16">' +
-                            '<input id="smmMax_' + c.id + '" type="number" placeholder="max" value="' + (c.max || 10000) + '" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white w-20">' +
-                            '<button onclick="saveSmmConfig(\\'' + c.id + '\\')" class="bg-emerald-600 px-3 py-1 rounded text-xs font-bold">Kaydet</button>' +
-                            (c.serviceId ? '<span class="text-emerald-400">✓ aktif</span>' : '<span class="text-amber-400">ayarlanmadı</span>') +
+                            '<input id="smmSvc_' + c.id + '" placeholder="service ID" value="' + (c.serviceId || '') + '" class="bg-black/40 border border-red-500/20 rounded px-2 py-1 text-xs text-white w-24">' +
+                            '<input id="smmPrice_cfg_' + c.id + '" type="number" placeholder="TL/1000" value="' + (c.pricePerThousand || '') + '" class="bg-black/40 border border-red-500/20 rounded px-2 py-1 text-xs text-white w-20">' +
+                            '<input id="smmMin_' + c.id + '" type="number" placeholder="min" value="' + (c.min || 100) + '" class="bg-black/40 border border-red-500/20 rounded px-2 py-1 text-xs text-white w-16">' +
+                            '<input id="smmMax_' + c.id + '" type="number" placeholder="max" value="' + (c.max || 10000) + '" class="bg-black/40 border border-red-500/20 rounded px-2 py-1 text-xs text-white w-20">' +
+                            '<button onclick="saveSmmConfig(\\'' + c.id + '\\')" class="bg-red-600 px-3 py-1 rounded text-xs font-bold">Kaydet</button>' +
+                            (c.serviceId ? '<span class="text-red-400">✓ aktif</span>' : '<span class="text-amber-400">ayarlanmadı</span>') +
                             '</div>';
                     }).join('') + '</div>';
 
@@ -1753,20 +1785,20 @@ app.get('/', (req, res) => {
 
                 document.getElementById('mainContent').innerHTML =
                     '<div class="glassCard p-6 rounded-2xl space-y-6">' +
-                    '<div class="flex justify-between items-center"><h2 class="text-xl font-bold text-emerald-400">Admin Paneli</h2><button onclick="location.reload();" class="bg-black/40 border border-emerald-500/30 px-4 py-2 rounded-xl text-xs font-bold">Geri Dön</button></div>' +
-                    '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-money-bill-wave mr-1"></i> Bekleyen Ödemeler</h3>' + pendingHtml + '</div>' +
-                    '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-receipt mr-1"></i> Tüm Ödemeler (kim ödeme yapmış)</h3>' + allPayHtml + '</div>' +
-                    '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-users mr-1"></i> Kayıtlı Kullanıcılar</h3>' + usersHtml + '</div>' +
-                    '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-right-to-bracket mr-1"></i> Giriş Yapanlar (kullanıcı / IP / kaynak / zaman)</h3>' + loginsHtml + '</div>' +
-                    '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-eye mr-1"></i> Ziyaretçiler (IP / nereden geldi / zaman)</h3>' + visitorsHtml + '</div>' +
-                    '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-sim-card mr-1"></i> Son Siparişler</h3>' + ordersHtml + '</div>' +
-                    '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-headset mr-1"></i> Destek Sohbetleri</h3>' + supportHtml + '</div>' +
-                    '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-code mr-1"></i> Yeni Ürünler - Servis Kodu Ayarları</h3>' + serviceCodesHtml + '</div>' +
+                    '<div class="flex justify-between items-center"><h2 class="text-xl font-bold text-red-400">Admin Paneli</h2><button onclick="location.reload();" class="bg-black/40 border border-red-500/30 px-4 py-2 rounded-xl text-xs font-bold">Geri Dön</button></div>' +
+                    '<div><h3 class="font-bold mb-2 text-red-300"><i class="fa-solid fa-money-bill-wave mr-1"></i> Bekleyen Ödemeler</h3>' + pendingHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-red-300"><i class="fa-solid fa-receipt mr-1"></i> Tüm Ödemeler (kim ödeme yapmış)</h3>' + allPayHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-red-300"><i class="fa-solid fa-users mr-1"></i> Kayıtlı Kullanıcılar</h3>' + usersHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-red-300"><i class="fa-solid fa-right-to-bracket mr-1"></i> Giriş Yapanlar (kullanıcı / IP / kaynak / zaman)</h3>' + loginsHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-red-300"><i class="fa-solid fa-eye mr-1"></i> Ziyaretçiler (IP / nereden geldi / zaman)</h3>' + visitorsHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-red-300"><i class="fa-solid fa-sim-card mr-1"></i> Son Siparişler</h3>' + ordersHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-red-300"><i class="fa-solid fa-headset mr-1"></i> Destek Sohbetleri</h3>' + supportHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-red-300"><i class="fa-solid fa-code mr-1"></i> Yeni Ürünler - Servis Kodu Ayarları</h3>' + serviceCodesHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-pink-300"><i class="fa-brands fa-instagram mr-1"></i> Instagram / SMM Servis Ayarları</h3>' + smmConfigHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-pink-300"><i class="fa-solid fa-list-check mr-1"></i> SMM Siparişleri</h3>' + smmOrdersHtml + '</div>' +
-                    '<div><h3 class="font-bold mb-2 text-emerald-300"><i class="fa-solid fa-stethoscope mr-1"></i> Sağlayıcı Teşhis (neden numara alınamıyor?)</h3>' +
+                    '<div><h3 class="font-bold mb-2 text-red-300"><i class="fa-solid fa-stethoscope mr-1"></i> Sağlayıcı Teşhis (neden numara alınamıyor?)</h3>' +
                     '<div class="flex flex-wrap gap-2 items-center mb-2">' +
-                    '<select id="diagProduct" class="bg-black/40 border border-emerald-500/20 rounded px-2 py-1 text-xs text-white">' + (data.catalog || []).map(function (c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join('') + '</select>' +
+                    '<select id="diagProduct" class="bg-black/40 border border-red-500/20 rounded px-2 py-1 text-xs text-white">' + (data.catalog || []).map(function (c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join('') + '</select>' +
                     '<button onclick="runDiag()" class="bg-blue-600 px-3 py-1 rounded text-xs font-bold">Kontrol Et</button>' +
                     '</div>' +
                     '<div id="diagResult" class="text-xs text-slate-400">Bir ürün seçip "Kontrol Et" butonuna bas.</div>' +
@@ -1788,7 +1820,7 @@ app.get('/', (req, res) => {
                     var priceHtml = (p && typeof p === 'object') ? ('maliyet: <b>' + p.cost + '</b> / stok: <b>' + p.count + '</b>') : 'fiyat bilgisi alınamadı (sağlayıcı bu ülke için fiyat döndürmedi)';
                     box.innerHTML =
                         '<div class="bg-black/30 p-3 rounded-lg space-y-1">' +
-                        '<div>Gerçek sağlayıcı bakiyesi: <b class="text-emerald-400">' + JSON.stringify(d.providerBalance) + '</b></div>' +
+                        '<div>Gerçek sağlayıcı bakiyesi: <b class="text-red-400">' + JSON.stringify(d.providerBalance) + '</b></div>' +
                         '<div>Kullanılan servis kodu: <b>' + u.servisKodu + '</b> (' + (u.kodOnaylandi ? 'isimle doğrulandı' : 'tahmin') + ')</div>' +
                         '<div>Denenecek ülke kodları (öncelik sırasıyla): <b>' + u.denenecekUlkeler.join(', ') + '</b></div>' +
                         '<div>İlk denenecek ülkenin fiyat/stok bilgisi: ' + priceHtml + '</div>' +
@@ -1844,7 +1876,7 @@ app.get('/', (req, res) => {
                     if (!d.success) { box.innerHTML = '<span class="text-red-400">' + (d.message || 'Hata') + '</span>'; return; }
                     if (!d.list.length) { box.innerHTML = '<span class="text-slate-500">Eşleşen servis yok (' + d.count + ' servis içinde arandı).</span>'; return; }
                     box.innerHTML = '<div class="max-h-48 overflow-y-auto space-y-1">' + d.list.map(function (s) {
-                        return '<div class="bg-black/30 px-2 py-1.5 rounded text-xs flex flex-wrap items-center gap-2"><span class="font-mono text-emerald-400">#' + s.service + '</span><span class="flex-1 min-w-[160px]">' + s.name + '</span><span class="text-slate-500">' + (s.category || '') + '</span><span class="text-amber-300">rate: ' + s.rate + '</span><span class="text-slate-500">min-max: ' + s.min + '-' + s.max + '</span></div>';
+                        return '<div class="bg-black/30 px-2 py-1.5 rounded text-xs flex flex-wrap items-center gap-2"><span class="font-mono text-red-400">#' + s.service + '</span><span class="flex-1 min-w-[160px]">' + s.name + '</span><span class="text-slate-500">' + (s.category || '') + '</span><span class="text-amber-300">rate: ' + s.rate + '</span><span class="text-slate-500">min-max: ' + s.min + '-' + s.max + '</span></div>';
                     }).join('') + '</div>';
                 } catch (e) { box.innerHTML = '<span class="text-red-400">İstek başarısız: ' + e.message + '</span>'; }
             }
