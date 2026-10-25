@@ -82,7 +82,8 @@ const DEFAULT_DB = {
     adminSessions: {}, // token -> {username, ts} - DİSKE YAZILIR, sunucu yeniden başlasa da (Render uykudan uyanma/redeploy) admin oturumu "Yetkisiz!" vermesin diye
     smmConfig: {}, // itemId -> {serviceId, pricePerThousand, min, max} - admin panelden ayarlanır
     smmOrders: {}, // id -> {username, itemId, link, quantity, price, providerOrderId, status, time, ts}
-    customCatalog: [] // admin panelden elle eklenen ürünler (sunucu yeniden başlayınca CATALOG'a geri yüklenir)
+    customCatalog: [], // admin panelden elle eklenen ürünler (sunucu yeniden başlayınca CATALOG'a geri yüklenir)
+    otherPlatformsMarkup: { multiplier: 1.8 } // "Diğer SMS Platformları" (TR'deki tüm sağlayıcı servisleri) için kâr çarpanı - admin panelden ayarlanır
 };
 
 // ====== KALICI KAYIT (dosyaya yazma) ======
@@ -430,6 +431,125 @@ async function countryCandidates(item, serviceCode) {
     return ordered.length ? ordered : nameList;
 }
 
+// ====== "DİĞER SMS PLATFORMLARI": sağlayıcıda Türkiye için mevcut TÜM servisler (Trendyol vb. dahil) ======
+// Elle seçilmiş CATALOG'un aksine burası sağlayıcının o ülke için sunduğu HER servisi otomatik listeler;
+// satış fiyatı = sağlayıcı maliyeti * kâr çarpanı (db.otherPlatformsMarkup, admin panelden ayarlanır).
+let countryPriceCache = {}; // countryId -> { time, data: { serviceCode: {cost,count} } }
+async function fetchPricesForCountry(countryId) {
+    const cached = countryPriceCache[countryId];
+    if (cached && Date.now() - cached.time < 120000) return cached.data;
+    const out = {};
+    try {
+        const r = await providerGet({ action: 'getPrices', country: countryId }, 20000);
+        let d = r.data;
+        if (typeof d === 'string') { try { d = JSON.parse(d); } catch (e) { d = null; } }
+        let svcMap = null;
+        if (d && typeof d === 'object') {
+            if (d[countryId] && typeof d[countryId] === 'object') svcMap = d[countryId];
+            else if (Object.keys(d).length === 1) svcMap = d[Object.keys(d)[0]];
+            else svcMap = d; // bazı sağlayıcılar tek ülke istenince doğrudan {servis:{cost,count}} döner
+        }
+        if (svcMap && typeof svcMap === 'object') {
+            for (const code in svcMap) {
+                const svc = svcMap[code];
+                if (svc && typeof svc === 'object') {
+                    const cost = svc.cost !== undefined ? svc.cost : (svc.price !== undefined ? svc.price : 0);
+                    const count = svc.count !== undefined ? svc.count : (svc.quant !== undefined ? svc.quant : (svc.quantity !== undefined ? svc.quantity : 0));
+                    out[code] = { cost: Number(cost) || 0, count: Number(count) || 0 };
+                }
+            }
+        }
+        console.log('[fetchPricesForCountry] ülke ' + countryId + ' -> ' + Object.keys(out).length + ' servis bulundu');
+    } catch (e) { console.error('[fetchPricesForCountry] hata:', e.message); }
+    countryPriceCache[countryId] = { time: Date.now(), data: out };
+    return out;
+}
+// Maliyetten satış fiyatı: çarpanla çarpılır, 10 TL'ye yuvarlanır, en az +20 TL kâr garantilenir.
+function computeOtherPrice(cost) {
+    const mult = (db.otherPlatformsMarkup && db.otherPlatformsMarkup.multiplier) || 1.8;
+    let price = Math.ceil((cost * mult) / 10) * 10;
+    if (price < cost + 20) price = Math.ceil((cost + 20) / 10) * 10;
+    return price;
+}
+app.get('/api/getOtherServices', async (req, res) => {
+    try {
+        const { map } = await resolveCountries();
+        const trId = map['tr'] || '62';
+        const { byCode } = await resolveServicesList();
+        const prices = await fetchPricesForCountry(trId);
+        const excluded = new Set((await Promise.all(CATALOG.map(it => resolveServiceCode(it)))).filter(Boolean));
+        const list = [];
+        for (const code in prices) {
+            if (excluded.has(code)) continue;
+            const info = prices[code];
+            if (!info || !info.cost) continue;
+            list.push({ code, name: byCode[code] || code, price: computeOtherPrice(info.cost), inStock: info.count > 0 });
+        }
+        list.sort((a, b) => (b.inStock - a.inStock) || a.name.localeCompare(b.name));
+        res.json({ success: true, services: list });
+    } catch (e) {
+        res.json({ success: false, message: 'Diğer platformlar yüklenemedi: ' + e.message });
+    }
+});
+app.post('/api/buyOtherService', async (req, res) => {
+    const { username, code } = req.body;
+    const userObj = db.users[username];
+    if (!userObj) return res.json({ success: false, message: "Kullanıcı bulunamadı." });
+    if (userObj.banned) return res.json({ success: false, message: "Hesabınız yasaklandı, satın alma yapamazsınız." });
+    if (!code) return res.json({ success: false, message: "Geçersiz servis." });
+    try {
+        const { map } = await resolveCountries();
+        const trId = map['tr'] || '62';
+        const prices = await fetchPricesForCountry(trId);
+        const info = prices[code];
+        if (!info) return res.json({ success: false, message: "Bu servis şu an bulunamadı, listeyi yenileyip tekrar deneyin." });
+        const price = computeOtherPrice(info.cost);
+        if (userObj.balance < price) return res.json({ success: false, message: "Yetersiz bakiye! Lütfen bakiye yükleyin." });
+        const { byCode } = await resolveServicesList();
+        const name = byCode[code] || code;
+
+        let responseText = '';
+        for (let attempt = 0; attempt < 2; attempt++) {
+            const resp = await providerGet({ action: 'getNumber', service: code, country: trId }, 30000);
+            responseText = resp.data;
+            if (typeof responseText === 'object') responseText = JSON.stringify(responseText);
+            responseText = responseText ? String(responseText).trim() : '';
+            if (responseText.startsWith('ACCESS_NUMBER')) break;
+            if (responseText.startsWith('NO_NUMBERS') && attempt === 0) { await new Promise(r => setTimeout(r, 1200)); continue; }
+            break;
+        }
+        if (responseText.startsWith('ACCESS_NUMBER')) {
+            const parts = responseText.split(':');
+            const activationId = parts[1];
+            const phoneNumber = parts.slice(2).join(':');
+            userObj.balance -= price;
+            const order = {
+                activationId, productName: name + ' (Diğer Platform)', price, phoneNumber,
+                code: "Bekleniyor...", status: 'waiting', username,
+                time: new Date().toLocaleString('tr-TR'), createdAt: Date.now()
+            };
+            db.orders[activationId] = order;
+            persist();
+            return res.json({ success: true, order });
+        }
+        const key = responseText.split(':')[0];
+        const msg = PROVIDER_ERRORS[key] || 'Şu an numara alınamıyor, lütfen daha sonra tekrar deneyin.';
+        res.json({ success: false, message: msg, retryable: key === 'NO_NUMBERS' });
+    } catch (e) {
+        res.json({ success: false, message: "Bağlantı hatası, lütfen tekrar deneyin." });
+    }
+});
+// Admin'in "Diğer Platformlar" kâr çarpanını ayarlaması (örn. maliyet 200 TL ise 1.8x -> 360 TL gibi)
+app.post('/api/admin/setOtherPlatformsMarkup', (req, res) => {
+    const { adminToken, multiplier } = req.body;
+    if (!checkAdminToken(adminToken)) return res.status(403).json({ success: false, message: "Yetkisiz." });
+    const m = Number(multiplier);
+    if (isNaN(m) || m <= 1) return res.json({ success: false, message: "Geçerli bir çarpan gir (örn: 1.8 veya 2)." });
+    db.otherPlatformsMarkup = { multiplier: m };
+    persist();
+    res.json({ success: true, message: "Kâr çarpanı güncellendi: " + m + "x" });
+});
+
 // ====== SERVİS LİSTESİ (sabit katalog, stok yazısı yok) ======
 app.get('/api/getServices', (req, res) => {
     const list = CATALOG.map(item => {
@@ -552,7 +672,7 @@ app.get('/api/admin/getData', (req, res) => {
     const smmOrders = Object.values(db.smmOrders).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 100);
     const smmConfig = SMM_CATALOG.map(c => Object.assign({ id: c.id, name: c.name }, db.smmConfig[c.id] || {}));
 
-    res.json({ success: true, users, payments, logins, orders, supportChats, visitors: db.visitors.length, visitorList, catalog: catalogList, smmOrders, smmConfig });
+    res.json({ success: true, users, payments, logins, orders, supportChats, visitors: db.visitors.length, visitorList, catalog: catalogList, smmOrders, smmConfig, otherPlatformsMarkup: (db.otherPlatformsMarkup && db.otherPlatformsMarkup.multiplier) || 1.8 });
 });
 
 app.post('/api/admin/processPayment', (req, res) => {
@@ -1246,6 +1366,15 @@ app.get('/', (req, res) => {
                 #contactCapsule { order: 3; }
                 .anka { font-size: 1.35rem !important; }
                 .orb1, .orb2, .orb3 { filter: blur(40px); }
+                /* Mobilde yazılar/butonlar çok küçük görünüyordu - okunabilirlik için büyütüldü */
+                body { font-size: 15.5px; }
+                .text-\[10px\] { font-size: .76rem !important; }
+                .text-xs { font-size: .85rem !important; line-height: 1.3rem !important; }
+                .text-sm { font-size: .95rem !important; line-height: 1.4rem !important; }
+                button, .shineBtn { min-height: 44px; }
+                input, select { font-size: 1rem !important; min-height: 44px; }
+                #mainContent h3 { font-size: 1.05rem !important; }
+                .prodCard { padding: 1.1rem !important; }
             }
             @media (prefers-reduced-motion: reduce) {
                 .orb1, .orb2, .orb3, .prodCard, .shineBtn::after, .wingR, .birdFloat, .tailE, .spark, .anka, .vipBadge { animation: none !important; transition: none !important; }
@@ -1865,6 +1994,11 @@ app.get('/', (req, res) => {
                     '<input id="npHints" placeholder="isim ipucu (ops., virgülle)" class="bg-black/40 border border-violet-500/20 rounded px-2 py-1 text-xs text-white w-44"></div>' +
                     '<button onclick="addProductSubmit()" class="bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl text-xs font-bold">Ürünü Ekle</button>' +
                     '</div>';
+
+                var otherPlatformsAdminHtml = '<p class="text-xs text-slate-500 mb-2">"Diğer SMS Platformları" bölümünde sağlayıcının Türkiye için sunduğu TÜM servisler (Trendyol vb. dahil) otomatik listelenir. Satış fiyatı = sağlayıcı maliyeti × bu çarpan (en az +20 TL kâr garantilenir, 10 TL\\'ye yuvarlanır).</p>' +
+                    '<div class="flex flex-wrap gap-2 items-center"><input id="otherMarkup" type="number" step="0.1" placeholder="örn: 1.8" value="' + (data.otherPlatformsMarkup || 1.8) + '" class="bg-black/40 border border-violet-500/20 rounded px-2 py-1 text-xs text-white w-24">' +
+                    '<button onclick="saveOtherMarkup()" class="bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl text-xs font-bold">Kaydet</button>' +
+                    '<span class="text-slate-500">örnek: maliyet 200 TL ise ' + (data.otherPlatformsMarkup || 1.8) + 'x ile ≈ ' + Math.ceil((200 * (data.otherPlatformsMarkup || 1.8)) / 10) * 10 + ' TL\\'ye satılır</span></div>';
 
                 var manualOrderHtml =
                     '<p class="text-xs text-slate-500 mb-2">Sağlayıcı API\\'si tamamen çöktüğünde bile, elinde olan bir numarayı müşteriye panel üzerinden teslim edebilirsin.</p>' +
