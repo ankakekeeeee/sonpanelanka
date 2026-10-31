@@ -18,19 +18,19 @@ const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '8811977430';
 const ADMIN_TELEGRAM_USERNAME = process.env.ADMIN_TELEGRAM_USERNAME || 'vipankaa'; // destek için görünen iletişim kanalı
 const ADMIN_WHATSAPP = process.env.ADMIN_WHATSAPP || '573181006792'; // wa.me linki için ülke koduyla, başında + ve boşluk olmadan
 const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || 'https://g-venlipanelsms.onrender.com';
-const ONAYLI_SMS_API_KEY = process.env.ONAYLI_SMS_API_KEY || 'osms_7f193a3fe65448a9380061c1b56e9fdc29f49c67e89eb3dd';
-const ONAYLI_SMS_URL = 'https://onaylasms.com.tr/stubs/handler_api.php';
-// NOT: sms.tc sağlayıcısına geçiş istendi, API key hazır (aşağıda) ama sms.tc'nin gerçek uç noktaları/istek-yanıt
-// formatı doğrulanamadı, bu yüzden aktif sağlayıcı henüz OnaylaSMS olarak bırakıldı - yanlış tahminle entegre edip
-// "numara alamıyorum" döngüsünü tekrarlamamak için. Key hazır tutuluyor, sms.tc'nin API dokümantasyonu/örnek
-// isteği gelince providerGet() bu sağlayıcıya yönlendirilecek.
-const SMSTC_API_KEY = process.env.SMSTC_API_KEY || 'smstc_live_0vHjhoWB7H8qniIpTV5GDwF3W04eNpXRUWHZ9GYW';
+// ====== SAĞLAYICI: sms.tc (SMS-Activate uyumlu uç nokta) ======
+// sms.tc'nin kendi dokümantasyonu doğrulandı: /stubs/handler_api.php, OnaylaSMS ile BİREBİR aynı
+// SMS-Activate protokolünü konuşuyor (ACCESS_NUMBER:id:phone, STATUS_OK:code, NO_NUMBERS, NO_BALANCE,
+// api_key query parametresi vb.) - bu yüzden providerGet() hiç değişmeden sadece URL+key değişti.
+// ÖNEMLİ: sms.tc'de TÜM fiyat/bakiye değerleri USD cinsinden döner (TL değil) - bkz. USD_TRY_RATE.
+const ONAYLI_SMS_API_KEY = process.env.PROVIDER_API_KEY || 'smstc_live_0vHjhoWB7H8qniIpTV5GDwF3W04eNpXRUWHZ9GYW';
+const ONAYLI_SMS_URL = process.env.PROVIDER_URL || 'https://sms.tc/stubs/handler_api.php';
 // Instagram takipçi/beğeni vb. için SMM panel sağlayıcısı (standart "add/status/services/balance" API formatı).
 // API anahtarını Render > Environment'tan SMM_API_KEY olarak gir - buraya yazmıyoruz, boşsa bu bölüm devre dışı kalır.
 const SMM_API_URL = process.env.SMM_API_URL || 'https://peakerr.com/api/v2';
-const SMM_API_KEY = process.env.SMM_API_KEY || 'smstc_live_0vHjhoWB7H8qniIpTV5GDwF3W04eNpXRUWHZ9GYW';
+const SMM_API_KEY = process.env.SMM_API_KEY || '';
 // Sağlayıcı bakiyesi bu değerin altına düşünce Telegram'dan otomatik uyarı gelir
-const LOW_BALANCE_THRESHOLD = parseFloat(process.env.LOW_BALANCE_THRESHOLD || '50');
+const LOW_BALANCE_THRESHOLD = parseFloat(process.env.LOW_BALANCE_THRESHOLD || '5'); // USD cinsinden (sms.tc bakiyesi USD döner)
 
 // Admin panel giriş bilgileri - burada veya Render > Environment'tan değiştirilebilir.
 // Sunucu her açıldığında bu hesabın kullanıcı adı/şifresi/yetkisi ZORLA bu değerlere eşitlenir (aşağıda, db yüklendikten sonra),
@@ -106,7 +106,8 @@ const DEFAULT_DB = {
     smmConfig: {}, // itemId -> {serviceId, pricePerThousand, min, max} - admin panelden ayarlanır
     smmOrders: {}, // id -> {username, itemId, link, quantity, price, providerOrderId, status, time, ts}
     customCatalog: [], // admin panelden elle eklenen ürünler (sunucu yeniden başlayınca CATALOG'a geri yüklenir)
-    otherPlatformsMarkup: { multiplier: 1.8 } // "Diğer SMS Platformları" (TR'deki tüm sağlayıcı servisleri) için kâr çarpanı - admin panelden ayarlanır
+    otherPlatformsMarkup: { multiplier: 1.8 }, // "Diğer SMS Platformları" VE ana kataloğun kâr çarpanı - admin panelden ayarlanır
+    usdTryRate: 42 // sms.tc fiyatları USD döndürüyor - TL'ye çevirmek için kur, admin panelden güncellenebilir
 };
 
 // ====== KALICI KAYIT (dosyaya yazma) ======
@@ -392,7 +393,7 @@ async function resolveCountries() {
 let priceCache = {}; // serviceCode -> { time, data: { countryId: {cost,count} } }
 async function fetchServicePrices(serviceCode) {
     const cached = priceCache[serviceCode];
-    if (cached && Date.now() - cached.time < 45000) return cached.data;
+    if (cached && Date.now() - cached.time < 300000) return cached.data;
     const out = {};
     try {
         const r = await providerGet({ action: 'getPrices', service: serviceCode }, 15000);
@@ -442,8 +443,10 @@ async function countryCandidates(item, serviceCode) {
     if (!nameList.includes(item.defCountry)) nameList.push(item.defCountry);
 
     const prices = await fetchServicePrices(serviceCode || item.serviceCode);
+    // Önce en UCUZ maliyetli adayı dene (kâr marjını korumak için pahalı seçenek asla önce denenmez),
+    // eşit maliyette stoğu yüksek olan öne alınır.
     const withStock = nameList.filter(id => prices[id] && prices[id].count > 0)
-        .sort((a, b) => (prices[b].count - prices[a].count));
+        .sort((a, b) => (prices[a].cost - prices[b].cost) || (prices[b].count - prices[a].count));
     const withoutInfo = nameList.filter(id => !prices[id]);
     const noStock = nameList.filter(id => prices[id] && prices[id].count === 0);
     // Öncelik: stoğu bilinen > bilgi yok (sağlayıcı yanıt vermediyse eski sıralama) > stoğu 0 görünen (yine de son çare dene, anlık değişebilir)
@@ -457,7 +460,7 @@ async function countryCandidates(item, serviceCode) {
 let countryPriceCache = {}; // countryId -> { time, data: { serviceCode: {cost,count} } }
 async function fetchPricesForCountry(countryId) {
     const cached = countryPriceCache[countryId];
-    if (cached && Date.now() - cached.time < 120000) return cached.data;
+    if (cached && Date.now() - cached.time < 300000) return cached.data;
     const out = {};
     try {
         const r = await providerGet({ action: 'getPrices', country: countryId }, 20000);
@@ -485,11 +488,39 @@ async function fetchPricesForCountry(countryId) {
     return out;
 }
 // Maliyetten satış fiyatı: çarpanla çarpılır, 10 TL'ye yuvarlanır, en az +20 TL kâr garantilenir.
-function computeOtherPrice(cost) {
+function computeOtherPrice(costUsd) {
+    const rate = db.usdTryRate || 42;
     const mult = (db.otherPlatformsMarkup && db.otherPlatformsMarkup.multiplier) || 1.8;
-    let price = Math.ceil((cost * mult) / 10) * 10;
-    if (price < cost + 20) price = Math.ceil((cost + 20) / 10) * 10;
+    const costTry = costUsd * rate;
+    let price = Math.ceil((costTry * mult) / 10) * 10;
+    if (price < costTry + 20) price = Math.ceil((costTry + 20) / 10) * 10;
     return price;
+}
+// Ana kataloğun (WhatsApp TR, Telegram TR vb.) satış fiyatını canlı sağlayıcı maliyetinden hesaplar.
+// Stok yoksa / fiyat alınamazsa null döner - çağıran yer bu durumda eski (son bilinen) fiyatı korur.
+async function getLiveSalePrice(item) {
+    try {
+        const serviceCode = await resolveServiceCode(item);
+        const candidates = await countryCandidates(item, serviceCode);
+        const prices = await fetchServicePrices(serviceCode);
+        const best = candidates.find(c => prices[c] && prices[c].count > 0);
+        if (!best) return null;
+        return computeOtherPrice(prices[best].cost);
+    } catch (e) { return null; }
+}
+// CATALOG'daki "dynamicPricing" işaretli ürünlerin fiyatını arka planda periyodik tazeler - böylece
+// hiçbir müşteri isteği canlı sağlayıcı sorgusunu BEKLEMEZ, her zaman son hesaplanan fiyat anında sunulur.
+let catalogPriceRefreshing = false;
+async function refreshDynamicCatalogPrices() {
+    if (catalogPriceRefreshing) return;
+    catalogPriceRefreshing = true;
+    try {
+        for (const item of CATALOG) {
+            if (!item.dynamicPricing) continue;
+            const live = await getLiveSalePrice(item);
+            if (live) item.price = live;
+        }
+    } finally { catalogPriceRefreshing = false; }
 }
 app.get('/api/getOtherServices', async (req, res) => {
     try {
@@ -1103,7 +1134,7 @@ app.post('/api/buyNumber', async (req, res) => {
                 const balText = String(balResp.data || '').trim();
                 const prices = await fetchServicePrices(serviceCode);
                 const costInfo = prices[usedCountry] ? ('maliyet: ' + prices[usedCountry].cost + ', stok: ' + prices[usedCountry].count) : 'fiyat bilgisi alınamadı';
-                balanceDiag = 'Gerçek sağlayıcı bakiyesi: ' + balText + ' | Bu numaranın maliyeti: ' + costInfo + '. NOT: Bu, panel içindeki TL bakiyenden FARKLI bir şey - sağlayıcı hesabına gerçek para yüklenmesi gerekiyor.';
+                balanceDiag = 'Gerçek sağlayıcı bakiyesi (USD): ' + balText + ' | Bu numaranın maliyeti (USD): ' + costInfo + '. NOT: Bu, panel içindeki TL bakiyenden FARKLI bir şey - sms.tc hesabına gerçek USD yüklenmesi gerekiyor.';
                 notifyPurchaseFailure('⚠️ NO_BALANCE: "' + item.name + '" (servis ' + serviceCode + ', ülke ' + usedCountry + ') alınamadı.\nSağlayıcı bakiyesi: ' + balText + '\n' + costInfo + '\nDenenen: ' + allRaw.join(' | '));
             } catch (e) { notifyPurchaseFailure('⚠️ NO_BALANCE: "' + item.name + '" alınamadı (bakiye kontrolü de başarısız: ' + e.message + ').'); }
         }
@@ -2355,6 +2386,11 @@ setInterval(async () => {
     if (changed) persist();
 }, 60000);
 
+// Ana katalog ürünlerinin (WhatsApp TR, Telegram TR vb.) fiyatını canlı sağlayıcı maliyetinden tazele -
+// sunucu açılışında bir kez ve sonra 10 dakikada bir. Hiçbir müşteri isteğini beklemez (arka planda çalışır).
+refreshDynamicCatalogPrices();
+setInterval(refreshDynamicCatalogPrices, 10 * 60 * 1000);
+
 // Sağlayıcı bakiyesi düşükse 15 dakikada bir otomatik kontrol + Telegram uyarısı
 setInterval(async () => {
     try {
@@ -2362,7 +2398,7 @@ setInterval(async () => {
         const m = String(r.data || '').match(/ACCESS_BALANCE:([0-9.]+)/);
         if (m) {
             const bal = parseFloat(m[1]);
-            if (bal < LOW_BALANCE_THRESHOLD) await notifyLowProviderBalance('⚠️ Sağlayıcı bakiyen azaldı: ' + bal + ' TL. Lütfen yükleme yap.');
+            if (bal < LOW_BALANCE_THRESHOLD) await notifyLowProviderBalance('⚠️ sms.tc bakiyen azaldı: $' + bal + ' (≈' + Math.round(bal * (db.usdTryRate || 42)) + ' TL). Lütfen yükleme yap.');
         }
     } catch (e) {}
 }, 15 * 60 * 1000);
