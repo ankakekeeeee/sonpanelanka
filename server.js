@@ -10,7 +10,7 @@ app.use(bodyParser.json());
 
 // Her yeni dosya teslim edildiğinde bu tarihi değiştiriyoruz. Sitenin en altında küçük yazıyla görünür -
 // Render'a yüklediğin sürümün gerçekten güncellenip güncellenmediğini buradan kontrol edebilirsin.
-const APP_VERSION = '2026-10-25-13';
+const APP_VERSION = '2026-10-31-14';
 
 // ====== AYARLAR (Render > Environment bölümünden de girilebilir) ======
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8989904538:AAGETyb0e5ghitsYM3yWInhnIi3lexYMjPw';
@@ -20,6 +20,11 @@ const ADMIN_WHATSAPP = process.env.ADMIN_WHATSAPP || '573181006792'; // wa.me li
 const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || 'https://g-venlipanelsms.onrender.com';
 const ONAYLI_SMS_API_KEY = process.env.ONAYLI_SMS_API_KEY || 'osms_7f193a3fe65448a9380061c1b56e9fdc29f49c67e89eb3dd';
 const ONAYLI_SMS_URL = 'https://onaylasms.com.tr/stubs/handler_api.php';
+// NOT: sms.tc sağlayıcısına geçiş istendi, API key hazır (aşağıda) ama sms.tc'nin gerçek uç noktaları/istek-yanıt
+// formatı doğrulanamadı, bu yüzden aktif sağlayıcı henüz OnaylaSMS olarak bırakıldı - yanlış tahminle entegre edip
+// "numara alamıyorum" döngüsünü tekrarlamamak için. Key hazır tutuluyor, sms.tc'nin API dokümantasyonu/örnek
+// isteği gelince providerGet() bu sağlayıcıya yönlendirilecek.
+const SMSTC_API_KEY = process.env.SMSTC_API_KEY || 'smstc_live_0vHjhoWB7H8qniIpTV5GDwF3W04eNpXRUWHZ9GYW';
 // Instagram takipçi/beğeni vb. için SMM panel sağlayıcısı (standart "add/status/services/balance" API formatı).
 // API anahtarını Render > Environment'tan SMM_API_KEY olarak gir - buraya yazmıyoruz, boşsa bu bölüm devre dışı kalır.
 const SMM_API_URL = process.env.SMM_API_URL || 'https://peakerr.com/api/v2';
@@ -56,6 +61,24 @@ function providerGet(params, timeout) {
     // Zincirin bir istek hata verirse kopmaması için ayrı bir "kuyruk ilerleticisi" tutuyoruz
     providerQueue = run.then(() => {}, () => {});
     return run;
+}
+
+// ====== ADMIN'E WHATSAPP ÜZERİNDEN BİLDİRİM (CallMeBot) ======
+// Resmi WhatsApp Business API ücretli/onay gerektirdiği için, admin'in KENDİ numarasına ücretsiz mesaj
+// göndermek üzere CallMeBot servisi kullanılıyor. Kurulum (tek seferlik, admin kendisi yapmalı):
+//   1) WhatsApp'tan +34 644 59 71 67 numarasına "I allow callmebot to send me messages" yaz.
+//   2) Gelen cevaptaki API key'i CALLMEBOT_APIKEY ortam değişkenine ekle (Render > Environment).
+// Bu değişken boşsa WhatsApp bildirimi sessizce atlanır (hata vermez), sadece Telegram bildirimi gider.
+const CALLMEBOT_APIKEY = process.env.CALLMEBOT_APIKEY || '';
+async function notifyAdminWhatsapp(text) {
+    if (!CALLMEBOT_APIKEY) return;
+    try {
+        const phone = ADMIN_WHATSAPP.startsWith('+') ? ADMIN_WHATSAPP : ('+' + ADMIN_WHATSAPP);
+        await axios.get('https://api.callmebot.com/whatsapp.php', {
+            params: { phone, text, apikey: CALLMEBOT_APIKEY },
+            timeout: 15000
+        });
+    } catch (e) { console.error('[notifyAdminWhatsapp] hata:', e.message); }
 }
 
 // ====== SMM (Instagram takipçi/beğeni vb.) sağlayıcısına istek ======
@@ -199,11 +222,8 @@ function checkAdminToken(token) {
 // (isimle bulunamazsa denenecek, yaygın bilinen kod tahminleri) var. Gerçek kod ilk satışta otomatik
 // keşfedilip önbelleğe alınır (resolveServiceCode). Admin panelden de elle düzeltilebilir.
 const CATALOG = [
-    { id: 'wa_tr', key: 'tr', name: 'WhatsApp Türkiye', serviceCode: 'wa', defCountry: '62', price: 300, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400' },
-    // Aynı WhatsApp Türkiye havuzundan çekilir (servis/ülke aynı) - sadece panelde farklı isim/fiyatla gösterilir.
-    { id: 'wa_tr_dinlenmis', key: 'tr', name: 'Dinlendirilmiş WhatsApp Türkiye', serviceCode: 'wa', defCountry: '62', price: 360, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400' },
-    // Aynı WhatsApp Türkiye havuzundan çekilir - sadece daha uygun fiyatlı/ekonomik seçenek olarak ayrı isimle listelenir.
-    { id: 'wa_tr_ucuz', key: 'tr', name: 'Ekonomik WhatsApp Türkiye', serviceCode: 'wa', defCountry: '62', price: 250, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400', featured: true },
+    // Türkiye WhatsApp tek ürüne indirildi: sadece "Dinlendirilmiş" (premium) numara satılıyor.
+    { id: 'wa_tr_dinlenmis', key: 'tr', name: 'Dinlendirilmiş WhatsApp Türkiye (Premium)', serviceCode: 'wa', defCountry: '62', price: 380, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400', featured: true },
     { id: 'tg_tr', key: 'tr', name: 'Telegram Türkiye', serviceCode: 'tg', defCountry: '62', price: 200, icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400' },
     { id: 'wa_ph', key: 'ph', name: 'WhatsApp Filipinler', serviceCode: 'wa', defCountry: '4', price: 160, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400' },
     { id: 'wa_co', key: 'co', name: 'WhatsApp Kolombiya', serviceCode: 'wa', defCountry: '10', price: 130, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400', featured: true },
@@ -504,7 +524,7 @@ app.post('/api/buyOtherService', async (req, res) => {
         const info = prices[code];
         if (!info) return res.json({ success: false, message: "Bu servis şu an bulunamadı, listeyi yenileyip tekrar deneyin." });
         const price = computeOtherPrice(info.cost);
-        if (userObj.balance < price) return res.json({ success: false, message: "Yetersiz bakiye! Lütfen bakiye yükleyin." });
+        if (userObj.balance < price) return res.json({ success: false, message: "Yetersiz bakiye! Lütfen bakiye yükleyin.", insufficientBalance: true });
         const { byCode } = await resolveServicesList();
         const name = byCode[code] || code;
 
@@ -571,7 +591,7 @@ app.get('/api/getSmmServices', (req, res) => {
 
 // Elden satış fiyat listesi - sadece gösterim, satın alma linki Telegram'a (admine) gider.
 app.get('/api/getManualServices', (req, res) => {
-    res.json({ success: true, categories: MANUAL_SOCIAL_CATALOG, contact: ADMIN_TELEGRAM_USERNAME });
+    res.json({ success: true, categories: MANUAL_SOCIAL_CATALOG, whatsapp: ADMIN_WHATSAPP });
 });
 
 app.get('/api/getCustomerBalance', (req, res) => {
@@ -653,6 +673,9 @@ app.post('/api/deposit/notify', async (req, res) => {
             reply_markup: { inline_keyboard: [[{ text: "✅ Onayla", callback_data: `approve|${paymentId}` }, { text: "❌ Reddet", callback_data: `reject|${paymentId}` }]] }
         });
     } catch (e) {}
+    // Onayla/Reddet butonları sadece Telegram'da çalışır (WhatsApp'ta etkileşimli buton yok) - WhatsApp
+    // bildirimi sadece haber amaçlı düz metin olarak gider, onay yine panelden veya Telegram'dan yapılır.
+    notifyAdminWhatsapp(`💰 Yeni ödeme bildirimi!\nKullanıcı: ${username}\nGönderen: ${senderName}\nTutar: ${amount} TL\nOnaylamak için panele veya Telegram'a bak.`);
 
     res.json({ success: true, message: "Ödeme bildiriminiz alındı. İnceleniyor." });
 });
@@ -994,7 +1017,7 @@ app.post('/api/buyNumber', async (req, res) => {
     if (!item) return res.json({ success: false, message: "Geçersiz ürün." });
 
     const price = item.price;
-    if (userObj.balance < price) return res.json({ success: false, message: "Yetersiz bakiye! Lütfen bakiye yükleyin." });
+    if (userObj.balance < price) return res.json({ success: false, message: "Yetersiz bakiye! Lütfen bakiye yükleyin.", insufficientBalance: true });
 
     const showDetail = userObj.role === 'admin';
 
@@ -1118,7 +1141,7 @@ app.post('/api/buySmm', async (req, res) => {
     if (!qty || qty < min || qty > max) return res.json({ success: false, message: "Miktar " + min + " ile " + max + " arasında olmalı." });
 
     const price = Math.round((cfg.pricePerThousand / 1000) * qty * 100) / 100;
-    if (userObj.balance < price) return res.json({ success: false, message: "Yetersiz bakiye! Lütfen bakiye yükleyin." });
+    if (userObj.balance < price) return res.json({ success: false, message: "Yetersiz bakiye! Lütfen bakiye yükleyin.", insufficientBalance: true });
 
     try {
         const resp = await smmPost({ action: 'add', service: cfg.serviceId, link: String(link).trim(), quantity: qty }, 20000);
@@ -1448,8 +1471,6 @@ app.get('/', (req, res) => {
                 </div>
                 <div class="flex items-center gap-2 sm:gap-4 flex-wrap justify-end">
                     <div id="contactCapsule" style="display:flex;align-items:center;gap:6px;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.3);border-radius:999px;padding:5px 10px">
-                        <a href="https://t.me/vipankaa" target="_blank" title="Telegram" style="color:#60a5fa;font-size:15px;line-height:0"><i class="fa-brands fa-telegram"></i></a>
-                        <span style="width:1px;height:14px;background:rgba(167,139,250,.25)"></span>
                         <a href="https://wa.me/573181006792" target="_blank" title="WhatsApp" style="color:#a78bfa;font-size:15px;line-height:0"><i class="fa-brands fa-whatsapp"></i></a>
                     </div>
                     <div id="userArea" class="flex items-center gap-2 sm:gap-4"></div>
@@ -1590,6 +1611,7 @@ app.get('/', (req, res) => {
                         '<div class="flex items-center gap-3">' +
                         '<span class="text-sm font-medium">@<strong class="text-white">' + currentUser + '</strong></span>' +
                         '<span id="userBalance" class="bg-violet-500/10 text-violet-300 px-3.5 py-1.5 rounded-full text-xs font-bold border border-violet-500/30">0.00 TL</span>' +
+                        '<button onclick="openDeposit()" class="bg-amber-400 hover:bg-amber-300 text-black px-3.5 py-1.5 rounded-xl text-xs font-black shadow-lg"><i class="fa-solid fa-circle-plus mr-1"></i>Bakiye Yükle</button>' +
                         (currentRole === 'admin' && adminToken ? '<button onclick="openAdminPanel()" class="bg-violet-600 hover:bg-violet-500 px-3.5 py-1.5 rounded-xl text-xs font-bold">Admin Panel</button>' : '') +
                         '<button onclick="logout()" class="text-violet-400 text-sm p-2"><i class="fa-solid fa-right-from-bracket"></i></button>' +
                         '</div>';
@@ -1606,7 +1628,7 @@ app.get('/', (req, res) => {
                         '<p class="text-violet-200/70 font-mono mb-8">Anlık sanal numara &bull; Hızlı SMS kodu &bull; 7/24 aktif<span class="blink">_</span></p>' +
                         '<div class="flex gap-3 justify-center"><button onclick="openAuthModal(\\'login\\')" class="bg-violet-600 hover:bg-violet-500 px-8 py-3 rounded-xl font-bold">Giriş Yap</button>' +
                         '<button onclick="openAuthModal(\\'register\\')" class="bg-black/40 border border-violet-500/40 hover:bg-violet-900/30 px-8 py-3 rounded-xl font-bold text-violet-300">Kayıt Ol</button></div>' +
-                        '<p class="text-violet-200/40 text-xs mt-6">Destek: Telegram <a href="https://t.me/vipankaa" target="_blank" class="text-violet-400 underline">@vipankaa</a> &bull; WhatsApp <a href="https://wa.me/573181006792" target="_blank" class="text-violet-400 underline">+57 318 100 6792</a></p>' +
+                        '<p class="text-violet-200/40 text-xs mt-6">Destek: WhatsApp <a href="https://wa.me/573181006792" target="_blank" class="text-violet-400 underline">+57 318 100 6792</a></p>' +
                         '</div>';
                 }
             }
@@ -1631,8 +1653,77 @@ app.get('/', (req, res) => {
                     '</div>' +
                     '<div id="servicesGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"><p class="text-slate-400 text-sm">Yükleniyor...</p></div>' +
                     '<div class="mt-6 flex justify-end"><button onclick="openDeposit()" class="bg-violet-600 hover:bg-violet-500 px-6 py-3 rounded-xl font-bold text-sm"><i class="fa-solid fa-wallet mr-2"></i> Bakiye Yükle</button></div>' +
+                    '<div class="mt-8">' +
+                    '<button onclick="toggleOtherPlatforms()" class="w-full text-left bg-black/40 border border-violet-500/15 p-4 rounded-2xl flex items-center justify-between"><span class="font-bold text-sm"><i class="fa-solid fa-globe mr-2 text-violet-400"></i>Diğer SMS Platformları (Trendyol ve tüm Türkiye servisleri)</span><i id="otherPlatformsChevron" class="fa-solid fa-chevron-down"></i></button>' +
+                    '<div id="otherPlatformsBody" class="mt-3" style="display:none;">' +
+                    '<input id="otherPlatformsSearch" oninput="filterOtherPlatforms()" placeholder="Servis ara (örn: Trendyol)" class="w-full bg-black/40 border border-violet-500/20 rounded-xl p-3 text-white text-sm mb-3">' +
+                    '<div id="otherPlatformsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"><p class="text-slate-400 text-sm">Yükleniyor...</p></div>' +
+                    '</div></div>' +
                     '<div id="smmSection" class="mt-8"></div>' +
                     '<div id="manualSection" class="mt-8"></div>';
+            }
+
+            var otherPlatformsLoaded = false;
+            var otherPlatformsData = [];
+            function toggleOtherPlatforms() {
+                var body = document.getElementById('otherPlatformsBody');
+                var chev = document.getElementById('otherPlatformsChevron');
+                var open = body.style.display !== 'none';
+                body.style.display = open ? 'none' : 'block';
+                if (chev) chev.className = open ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-up';
+                if (!open && !otherPlatformsLoaded) loadOtherServices();
+            }
+            async function loadOtherServices() {
+                var grid = document.getElementById('otherPlatformsGrid');
+                if (!grid) return;
+                try {
+                    var res = await fetch('/api/getOtherServices');
+                    var data = await res.json();
+                    otherPlatformsLoaded = true;
+                    if (!data.success || !data.services.length) { grid.innerHTML = '<p class="text-slate-400 text-sm">Şu an listelenecek servis yok.</p>'; return; }
+                    otherPlatformsData = data.services;
+                    renderOtherPlatforms(otherPlatformsData);
+                } catch (e) { grid.innerHTML = '<p class="text-slate-400 text-sm">Yüklenemedi.</p>'; }
+            }
+            function renderOtherPlatforms(list) {
+                var grid = document.getElementById('otherPlatformsGrid');
+                if (!grid) return;
+                if (!list.length) { grid.innerHTML = '<p class="text-slate-400 text-sm">Eşleşen servis yok.</p>'; return; }
+                grid.innerHTML = list.map(function (s) {
+                    return '<div class="prodCard bg-black/40 border border-violet-500/15 p-5 rounded-2xl flex items-center justify-between shadow-xl transition' + (s.inStock ? '' : ' opacity-50') + '">' +
+                        '<div class="min-w-0"><h3 class="font-bold text-sm text-white truncate">' + s.name + '</h3>' +
+                        '<p class="text-violet-300 font-bold text-sm">' + s.price.toFixed(2) + ' TL' + (s.inStock ? '' : ' <span class="text-slate-500 font-normal">(stok yok)</span>') + '</p></div>' +
+                        '<button data-code="' + s.code + '" onclick="buyOtherService(this)" ' + (s.inStock ? '' : 'disabled') + ' class="shineBtn bg-violet-600 hover:bg-violet-500 disabled:opacity-40 px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg transition shrink-0">Numara Al</button>' +
+                        '</div>';
+                }).join('');
+            }
+            function filterOtherPlatforms() {
+                var q = document.getElementById('otherPlatformsSearch').value.toLocaleLowerCase('tr');
+                renderOtherPlatforms(otherPlatformsData.filter(function (s) { return s.name.toLocaleLowerCase('tr').includes(q); }));
+            }
+            async function buyOtherService(btn) {
+                var code = btn.getAttribute('data-code');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                try {
+                    var res = await fetch('/api/buyOtherService', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: currentUser, code: code }) });
+                    var data = await res.json();
+                    if (data.success) {
+                        fetchBalance();
+                        trackOrder(data.order.activationId, data.order.phoneNumber, 600, data.order.productName, null, true);
+                        btn.innerText = 'Numara Al';
+                        btn.disabled = false;
+                    } else {
+                        btn.innerText = 'Numara Al';
+                        btn.disabled = false;
+                        if (data.insufficientBalance) { showToast(data.message, 'fa-wallet'); openDeposit(); }
+                        else alert(data.message);
+                    }
+                } catch (e) {
+                    btn.innerText = 'Numara Al';
+                    btn.disabled = false;
+                    alert('Bağlantı hatası, tekrar deneyin.');
+                }
             }
 
             function showToast(message, icon) {
@@ -1703,9 +1794,9 @@ app.get('/', (req, res) => {
                     var res = await fetch('/api/getManualServices');
                     var data = await res.json();
                     if (!data.success || !data.categories.length) { box.innerHTML = ''; return; }
-                    var tgUrl = 'https://t.me/' + data.contact;
+                    var waUrl = 'https://wa.me/' + data.whatsapp;
                     box.innerHTML = '<h2 class="text-sm font-bold text-violet-300 mb-1 flex items-center gap-2"><i class="fa-solid fa-crown"></i> Instagram / TikTok / Telegram Takipçi &amp; Beğeni</h2>' +
-                        '<p class="text-[11px] text-slate-500 mb-3">Bu hizmetler panel bakiyesinden otomatik alınmaz - fiyatı seç, Telegram üzerinden bizimle iletişime geç.</p>' +
+                        '<p class="text-[11px] text-slate-500 mb-3">Bu hizmetler panel bakiyesinden otomatik alınmaz - fiyatı seç, WhatsApp üzerinden bizimle iletişime geç.</p>' +
                         '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">' + data.categories.map(function (cat) {
                             return '<div class="prodCard bg-black/40 border border-violet-500/15 p-5 rounded-2xl shadow-xl transition">' +
                                 '<div class="flex items-center gap-3 mb-3">' +
@@ -1715,7 +1806,7 @@ app.get('/', (req, res) => {
                                 '<div class="space-y-1.5">' + cat.packages.map(function (p) {
                                     return '<div class="flex justify-between items-center bg-black/30 rounded-lg px-3 py-1.5 text-xs"><span class="text-slate-300">' + p.label + '</span><span class="text-violet-300 font-bold">' + p.price.toFixed(2) + ' TL</span></div>';
                                 }).join('') + '</div>' +
-                                '<a href="' + tgUrl + '" target="_blank" class="shineBtn mt-3 block text-center bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl text-xs font-bold shadow-lg transition">Telegram ile Satın Al</a>' +
+                                '<a href="' + waUrl + '" target="_blank" class="shineBtn mt-3 block text-center bg-violet-600 hover:bg-violet-500 px-4 py-2 rounded-xl text-xs font-bold shadow-lg transition">WhatsApp ile Satın Al</a>' +
                                 '</div>';
                         }).join('') + '</div>';
                 } catch (e) { box.innerHTML = ''; }
@@ -1750,6 +1841,7 @@ app.get('/', (req, res) => {
                 if (!link || !qty) return alert('Lütfen link ve miktar girin.');
                 var r = await fetch('/api/buySmm', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ productId: id, username: currentUser, link: link, quantity: qty }) });
                 var d = await r.json();
+                if (d.insufficientBalance) { showToast(d.message, 'fa-wallet'); openDeposit(); return; }
                 alert(d.message);
                 if (d.success) { fetchBalance(); document.getElementById('smmLink_' + id).value = ''; document.getElementById('smmQty_' + id).value = ''; }
             }
@@ -1773,7 +1865,8 @@ app.get('/', (req, res) => {
                     } else {
                         btn.disabled = false;
                         btn.innerText = 'Numara Al';
-                        alert(data.message);
+                        if (data.insufficientBalance) { showToast(data.message, 'fa-wallet'); openDeposit(); }
+                        else alert(data.message);
                     }
                 } catch (e) {
                     btn.disabled = false;
@@ -2060,6 +2153,9 @@ app.get('/', (req, res) => {
                     '<div><h3 class="font-bold mb-2 text-violet-300"><i class="fa-solid fa-sim-card mr-1"></i> Son Siparişler</h3>' + ordersHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-violet-300"><i class="fa-solid fa-headset mr-1"></i> Destek Sohbetleri</h3>' + supportHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-violet-300"><i class="fa-solid fa-code mr-1"></i> Yeni Ürünler - Servis Kodu Ayarları</h3>' + serviceCodesHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-violet-300"><i class="fa-solid fa-plus mr-1"></i> Ürün Yönetimi (elle ürün ekle/sil)</h3>' + catalogMgmtHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-violet-300"><i class="fa-solid fa-globe mr-1"></i> Diğer SMS Platformları - Kâr Çarpanı</h3>' + otherPlatformsAdminHtml + '</div>' +
+                    '<div><h3 class="font-bold mb-2 text-violet-300"><i class="fa-solid fa-pen mr-1"></i> Sipariş - Elle Kod Gir / Elle Sipariş Oluştur</h3>' + manualOrderHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-pink-300"><i class="fa-brands fa-instagram mr-1"></i> Instagram / SMM Servis Ayarları</h3>' + smmConfigHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-pink-300"><i class="fa-solid fa-list-check mr-1"></i> SMM Siparişleri</h3>' + smmOrdersHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-violet-300"><i class="fa-solid fa-stethoscope mr-1"></i> Sağlayıcı Teşhis (neden numara alınamıyor?)</h3>' +
@@ -2171,6 +2267,52 @@ app.get('/', (req, res) => {
                 var d = await r.json();
                 alert(d.message);
                 openAdminPanel();
+            }
+
+            async function addProductSubmit() {
+                var name = document.getElementById('npName').value.trim();
+                var price = document.getElementById('npPrice').value.trim();
+                var serviceCode = document.getElementById('npServiceCode').value.trim();
+                var defCountry = document.getElementById('npDefCountry').value.trim();
+                var key = document.getElementById('npKey').value.trim();
+                var hints = document.getElementById('npHints').value.trim();
+                var r = await fetch('/api/admin/addProduct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminToken: adminToken, name: name, price: price, serviceCode: serviceCode, defCountry: defCountry, key: key, serviceHints: hints }) });
+                var d = await r.json();
+                alert(d.message);
+                if (d.success) openAdminPanel();
+            }
+            async function deleteProductAdmin(id) {
+                if (!confirm('Bu ürünü silmek istediğine emin misin?')) return;
+                var r = await fetch('/api/admin/deleteProduct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminToken: adminToken, id: id }) });
+                var d = await r.json();
+                alert(d.message);
+                if (d.success) openAdminPanel();
+            }
+            async function saveOtherMarkup() {
+                var v = document.getElementById('otherMarkup').value.trim();
+                var r = await fetch('/api/admin/setOtherPlatformsMarkup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminToken: adminToken, multiplier: v }) });
+                var d = await r.json();
+                alert(d.message);
+                if (d.success) openAdminPanel();
+            }
+            async function manualOrderSubmit() {
+                var username = document.getElementById('moUser').value.trim();
+                var productName = document.getElementById('moProduct').value.trim();
+                var phoneNumber = document.getElementById('moPhone').value.trim();
+                var code = document.getElementById('moCode').value.trim();
+                var price = document.getElementById('moPrice').value.trim();
+                var r = await fetch('/api/admin/manualOrder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminToken: adminToken, username: username, productName: productName, phoneNumber: phoneNumber, code: code, price: price }) });
+                var d = await r.json();
+                alert(d.message);
+                if (d.success) openAdminPanel();
+            }
+            async function setOrderCodeSubmit() {
+                var activationId = document.getElementById('ocId').value.trim();
+                var code = document.getElementById('ocCode').value.trim();
+                var r = await fetch('/api/admin/setOrderCode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminToken: adminToken, activationId: activationId, code: code }) });
+                var d = await r.json();
+                alert(d.message);
+                if (d.success) openAdminPanel();
             }
 
             function logout() {
