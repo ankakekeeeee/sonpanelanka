@@ -13,13 +13,13 @@ app.use(bodyParser.json());
 const APP_VERSION = '2026-10-31-14';
 
 // ====== AYARLAR (Render > Environment bölümünden de girilebilir) ======
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '9199680458:AAECNOCqTJgP2zs9Lm0IElL0tT45E2-bAwM;
-const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '8982409946';
-const ADMIN_TELEGRAM_USERNAME = process.env.ADMIN_TELEGRAM_USERNAME || '@REDACEHCK'; // destek için görünen iletişim kanalı
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8989904538:AAGETyb0e5ghitsYM3yWInhnIi3lexYMjPw';
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '8811977430';
+const ADMIN_TELEGRAM_USERNAME = process.env.ADMIN_TELEGRAM_USERNAME || 'vipankaa'; // destek için görünen iletişim kanalı
 const ADMIN_WHATSAPP = process.env.ADMIN_WHATSAPP || '573181006792'; // wa.me linki için ülke koduyla, başında + ve boşluk olmadan
 const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || 'https://g-venlipanelsms.onrender.com';
-const ONAYLI_SMS_API_KEY = process.env.ONAYLI_SMS_API_KEY || 'smstc_live_0vHjhoWB7H8qniIpTV5GDwF3W04eNpXRUWHZ9GYW';
-const ONAYLI_SMS_URL = 'https://sms.tc/prices/stubs/handler_api.php';
+const ONAYLI_SMS_API_KEY = process.env.ONAYLI_SMS_API_KEY || 'osms_7f193a3fe65448a9380061c1b56e9fdc29f49c67e89eb3dd';
+const ONAYLI_SMS_URL = 'https://onaylasms.com.tr/stubs/handler_api.php';
 // NOT: sms.tc sağlayıcısına geçiş istendi, API key hazır (aşağıda) ama sms.tc'nin gerçek uç noktaları/istek-yanıt
 // formatı doğrulanamadı, bu yüzden aktif sağlayıcı henüz OnaylaSMS olarak bırakıldı - yanlış tahminle entegre edip
 // "numara alamıyorum" döngüsünü tekrarlamamak için. Key hazır tutuluyor, sms.tc'nin API dokümantasyonu/örnek
@@ -28,7 +28,7 @@ const SMSTC_API_KEY = process.env.SMSTC_API_KEY || 'smstc_live_0vHjhoWB7H8qniIpT
 // Instagram takipçi/beğeni vb. için SMM panel sağlayıcısı (standart "add/status/services/balance" API formatı).
 // API anahtarını Render > Environment'tan SMM_API_KEY olarak gir - buraya yazmıyoruz, boşsa bu bölüm devre dışı kalır.
 const SMM_API_URL = process.env.SMM_API_URL || 'https://peakerr.com/api/v2';
-const SMM_API_KEY = process.env.SMM_API_KEY || '';
+const SMM_API_KEY = process.env.SMM_API_KEY || 'smstc_live_0vHjhoWB7H8qniIpTV5GDwF3W04eNpXRUWHZ9GYW';
 // Sağlayıcı bakiyesi bu değerin altına düşünce Telegram'dan otomatik uyarı gelir
 const LOW_BALANCE_THRESHOLD = parseFloat(process.env.LOW_BALANCE_THRESHOLD || '50');
 
