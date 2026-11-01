@@ -13,11 +13,11 @@ app.use(bodyParser.json());
 const APP_VERSION = '2026-11-01-15';
 
 // ====== AYARLAR (Render > Environment bölümünden de girilebilir) ======
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8989904538:AAGETyb0e5ghitsYM3yWInhnIi3lexYMjPw';
-const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '8811977430';
-const ADMIN_TELEGRAM_USERNAME = process.env.ADMIN_TELEGRAM_USERNAME || 'vipankaa'; // destek için görünen iletişim kanalı
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '9264065416:AAEf6HlYGJSJLWtAalLhA8C82w2-vyIrzsY';
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '8935662812';
+const ADMIN_TELEGRAM_USERNAME = process.env.ADMIN_TELEGRAM_USERNAME || '@sonpatronn'; // destek için görünen iletişim kanalı
 const ADMIN_WHATSAPP = process.env.ADMIN_WHATSAPP || '573181006792'; // wa.me linki için ülke koduyla, başında + ve boşluk olmadan
-const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || 'https://g-venlipanelsms.onrender.com';
+const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || 'https://sonpanelanka-1.onrender.com';
 // ====== SAĞLAYICI: sms.tc (SMS-Activate uyumlu uç nokta) ======
 // sms.tc'nin kendi dokümantasyonu doğrulandı: /stubs/handler_api.php, OnaylaSMS ile BİREBİR aynı
 // SMS-Activate protokolünü konuşuyor (ACCESS_NUMBER:id:phone, STATUS_OK:code, NO_NUMBERS, NO_BALANCE,
