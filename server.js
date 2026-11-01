@@ -10,7 +10,7 @@ app.use(bodyParser.json());
 
 // Her yeni dosya teslim edildiğinde bu tarihi değiştiriyoruz. Sitenin en altında küçük yazıyla görünür -
 // Render'a yüklediğin sürümün gerçekten güncellenip güncellenmediğini buradan kontrol edebilirsin.
-const APP_VERSION = '2026-10-31-14';
+const APP_VERSION = '2026-11-01-15';
 
 // ====== AYARLAR (Render > Environment bölümünden de girilebilir) ======
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8989904538:AAGETyb0e5ghitsYM3yWInhnIi3lexYMjPw';
@@ -23,7 +23,7 @@ const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || 'https://g-venlip
 // SMS-Activate protokolünü konuşuyor (ACCESS_NUMBER:id:phone, STATUS_OK:code, NO_NUMBERS, NO_BALANCE,
 // api_key query parametresi vb.) - bu yüzden providerGet() hiç değişmeden sadece URL+key değişti.
 // ÖNEMLİ: sms.tc'de TÜM fiyat/bakiye değerleri USD cinsinden döner (TL değil) - bkz. USD_TRY_RATE.
-const ONAYLI_SMS_API_KEY = process.env.PROVIDER_API_KEY || 'smstc_live_4VLJmagejithiOa9j8DZXirbRkuuDMMZxKI244Ed';
+const ONAYLI_SMS_API_KEY = process.env.PROVIDER_API_KEY || 'smstc_live_0vHjhoWB7H8qniIpTV5GDwF3W04eNpXRUWHZ9GYW';
 const ONAYLI_SMS_URL = process.env.PROVIDER_URL || 'https://sms.tc/stubs/handler_api.php';
 // Instagram takipçi/beğeni vb. için SMM panel sağlayıcısı (standart "add/status/services/balance" API formatı).
 // API anahtarını Render > Environment'tan SMM_API_KEY olarak gir - buraya yazmıyoruz, boşsa bu bölüm devre dışı kalır.
@@ -1439,19 +1439,27 @@ app.get('/', (req, res) => {
 
             /* ====== Mobil incelikler ====== */
             @media (max-width: 640px) {
-                header { flex-wrap: wrap; gap: 10px; padding: 14px; }
+                /* Header'ı dikeyde iki bloğa ayır: logo üstte, kullanıcı/bakiye alanı altta tam genişlikte -
+                   önceden ikisi tek satıra sığmaya çalışıp üst üste biniyordu ("yazılar kaymış" şikayeti buradan). */
+                header { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
+                header > div:first-child { justify-content: center; }
                 #contactCapsule { order: 3; }
+                #userArea { width: 100%; }
+                #userArea > div { width: 100%; }
+                #userArea .flex { width: 100%; justify-content: center; }
                 .anka { font-size: 1.35rem !important; }
                 .orb1, .orb2, .orb3 { filter: blur(40px); }
                 /* Mobilde yazılar/butonlar çok küçük görünüyordu - okunabilirlik için büyütüldü */
-                body { font-size: 15.5px; }
+                body { font-size: 15.5px; overflow-x: hidden; }
                 .text-\[10px\] { font-size: .76rem !important; }
                 .text-xs { font-size: .85rem !important; line-height: 1.3rem !important; }
                 .text-sm { font-size: .95rem !important; line-height: 1.4rem !important; }
                 button, .shineBtn { min-height: 44px; }
                 input, select { font-size: 1rem !important; min-height: 44px; }
                 #mainContent h3 { font-size: 1.05rem !important; }
-                .prodCard { padding: 1.1rem !important; }
+                .prodCard { padding: .9rem !important; gap: 10px; }
+                .prodCard h3.truncate { max-width: 38vw; }
+                #depositModal .glassCard, #authModal .glassCard { width: 94vw; max-width: 94vw; padding: 1.5rem !important; margin: 0 auto; }
             }
             @media (prefers-reduced-motion: reduce) {
                 .orb1, .orb2, .orb3, .prodCard, .shineBtn::after, .wingR, .birdFloat, .tailE, .spark, .anka, .vipBadge { animation: none !important; transition: none !important; }
@@ -1527,7 +1535,7 @@ app.get('/', (req, res) => {
                     <div id="contactCapsule" style="display:flex;align-items:center;gap:6px;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.3);border-radius:999px;padding:5px 10px">
                         <a href="https://wa.me/573181006792" target="_blank" title="WhatsApp" style="color:#a78bfa;font-size:15px;line-height:0"><i class="fa-brands fa-whatsapp"></i></a>
                     </div>
-                    <div id="userArea" class="flex items-center gap-2 sm:gap-4"></div>
+                    <div id="userArea" class="flex items-center gap-2 sm:gap-4 flex-wrap justify-end"></div>
                 </div>
             </header>
             <main id="mainContent"></main>
@@ -1662,12 +1670,12 @@ app.get('/', (req, res) => {
                 var area = document.getElementById('userArea');
                 if (currentUser) {
                     area.innerHTML =
-                        '<div class="flex items-center gap-3">' +
-                        '<span class="text-sm font-medium">@<strong class="text-white">' + currentUser + '</strong></span>' +
-                        '<span id="userBalance" class="bg-violet-500/10 text-violet-300 px-3.5 py-1.5 rounded-full text-xs font-bold border border-violet-500/30">0.00 TL</span>' +
-                        '<button onclick="openDeposit()" class="bg-amber-400 hover:bg-amber-300 text-black px-3.5 py-1.5 rounded-xl text-xs font-black shadow-lg"><i class="fa-solid fa-circle-plus mr-1"></i>Bakiye Yükle</button>' +
-                        (currentRole === 'admin' && adminToken ? '<button onclick="openAdminPanel()" class="bg-violet-600 hover:bg-violet-500 px-3.5 py-1.5 rounded-xl text-xs font-bold">Admin Panel</button>' : '') +
-                        '<button onclick="logout()" class="text-violet-400 text-sm p-2"><i class="fa-solid fa-right-from-bracket"></i></button>' +
+                        '<div class="flex items-center gap-2 flex-wrap justify-end" style="row-gap:8px">' +
+                        '<span class="text-sm font-medium" style="white-space:nowrap">@<strong class="text-white">' + currentUser + '</strong></span>' +
+                        '<span id="userBalance" class="bg-violet-500/10 text-violet-300 px-3.5 py-1.5 rounded-full text-xs font-bold border border-violet-500/30" style="white-space:nowrap">0.00 TL</span>' +
+                        '<button onclick="openDeposit()" class="bg-amber-400 hover:bg-amber-300 text-black px-3.5 py-1.5 rounded-xl text-xs font-black shadow-lg" style="white-space:nowrap"><i class="fa-solid fa-circle-plus mr-1"></i>Bakiye Yükle</button>' +
+                        (currentRole === 'admin' && adminToken ? '<button onclick="openAdminPanel()" class="bg-violet-600 hover:bg-violet-500 px-3.5 py-1.5 rounded-xl text-xs font-bold" style="white-space:nowrap">Admin Panel</button>' : '') +
+                        '<button onclick="logout()" class="text-violet-400 text-sm p-2" style="white-space:nowrap"><i class="fa-solid fa-right-from-bracket"></i></button>' +
                         '</div>';
                     fetchBalance();
                 } else {
