@@ -23,7 +23,7 @@ const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || 'https://g-venlip
 // SMS-Activate protokolünü konuşuyor (ACCESS_NUMBER:id:phone, STATUS_OK:code, NO_NUMBERS, NO_BALANCE,
 // api_key query parametresi vb.) - bu yüzden providerGet() hiç değişmeden sadece URL+key değişti.
 // ÖNEMLİ: sms.tc'de TÜM fiyat/bakiye değerleri USD cinsinden döner (TL değil) - bkz. USD_TRY_RATE.
-const ONAYLI_SMS_API_KEY = process.env.PROVIDER_API_KEY || 'smstc_live_kGbtYSULncQ0K8C8uiOwEsyIXTXdiadfLpgjYezA';
+const ONAYLI_SMS_API_KEY = process.env.PROVIDER_API_KEY || 'smstc_live_0vHjhoWB7H8qniIpTV5GDwF3W04eNpXRUWHZ9GYW';
 const ONAYLI_SMS_URL = process.env.PROVIDER_URL || 'https://sms.tc/stubs/handler_api.php';
 // Instagram takipçi/beğeni vb. için SMM panel sağlayıcısı (standart "add/status/services/balance" API formatı).
 // API anahtarını Render > Environment'tan SMM_API_KEY olarak gir - buraya yazmıyoruz, boşsa bu bölüm devre dışı kalır.
@@ -222,26 +222,36 @@ function checkAdminToken(token) {
 // bunun yerine serviceHints (sağlayıcının servis listesinde isimle aranacak kelimeler) ve guessCodes
 // (isimle bulunamazsa denenecek, yaygın bilinen kod tahminleri) var. Gerçek kod ilk satışta otomatik
 // keşfedilip önbelleğe alınır (resolveServiceCode). Admin panelden de elle düzeltilebilir.
+// ====== KATALOG (2026-11-01'de tamamen yenilendi - eski tüm ürünler silindi, sadece aşağıdakiler satılıyor) ======
+// Fiyatlar admin'in verdiği TL değerleri; dynamicPricing:true olanlar sms.tc canlı maliyetine göre arka planda
+// (refreshDynamicCatalogPrices) güncellenir ama asla bu başlangıç fiyatının ALTINA düşmez (bkz. computeOtherPrice).
 const CATALOG = [
-    // Türkiye WhatsApp tek ürüne indirildi: sadece "Dinlendirilmiş" (premium) numara satılıyor.
-    { id: 'wa_tr_dinlenmis', key: 'tr', name: 'Dinlendirilmiş WhatsApp Türkiye (Premium)', serviceCode: 'wa', defCountry: '62', price: 380, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400', featured: true },
-    { id: 'tg_tr', key: 'tr', name: 'Telegram Türkiye', serviceCode: 'tg', defCountry: '62', price: 200, icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400' },
-    { id: 'wa_ph', key: 'ph', name: 'WhatsApp Filipinler', serviceCode: 'wa', defCountry: '4', price: 160, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400' },
-    { id: 'wa_co', key: 'co', name: 'WhatsApp Kolombiya', serviceCode: 'wa', defCountry: '10', price: 130, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400', featured: true },
-    { id: 'tg_co', key: 'co', name: 'Telegram Kolombiya', serviceCode: 'tg', defCountry: '10', price: 120, icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400', featured: true },
-    { id: 'tg_us', key: 'us', name: 'Telegram ABD', serviceCode: 'tg', defCountry: '187', alt: ['12'], price: 200, icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400' },
-    { id: 'ig_tr', key: 'tr', name: 'Instagram Türkiye', defCountry: '62', price: 60, serviceHints: ['instagram'], guessCodes: ['ig'], icon: 'fa-instagram', iconSet: 'fa-brands', bg: 'bg-pink-500/10', color: 'text-pink-400' },
-    { id: 'go_tr', key: 'tr', name: 'Google / Gmail Türkiye', defCountry: '62', price: 60, serviceHints: ['google', 'gmail'], guessCodes: ['go'], icon: 'fa-google', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400' },
-    { id: 'ds_tr', key: 'tr', name: 'Discord Türkiye', defCountry: '62', price: 60, serviceHints: ['discord'], guessCodes: ['ds', 'dc'], icon: 'fa-discord', iconSet: 'fa-brands', bg: 'bg-indigo-500/10', color: 'text-indigo-400' },
-    { id: 'vi_tr', key: 'tr', name: 'Viber Türkiye', defCountry: '62', price: 60, serviceHints: ['viber'], guessCodes: ['vi'], icon: 'fa-viber', iconSet: 'fa-brands', bg: 'bg-purple-500/10', color: 'text-purple-400' },
-    { id: 'ap_tr', key: 'tr', name: 'Apple Türkiye', defCountry: '62', price: 150, serviceHints: ['apple', 'icloud'], guessCodes: ['mz', 'ap'], icon: 'fa-apple', iconSet: 'fa-brands', bg: 'bg-slate-500/10', color: 'text-slate-300' },
-    { id: 'fups_tr', key: 'tr', name: 'FUPS (Fiziki) Türkiye', defCountry: '62', price: 2000, serviceHints: ['fups'], guessCodes: [], icon: 'fa-sim-card', iconSet: 'fa-solid', bg: 'bg-amber-500/10', color: 'text-amber-300' },
-    { id: 'getir_tr', key: 'tr', name: 'Getir Türkiye', defCountry: '62', price: 200, serviceHints: ['getir'], guessCodes: [], icon: 'fa-motorcycle', iconSet: 'fa-solid', bg: 'bg-violet-500/10', color: 'text-violet-300' },
-    { id: 'hopi_tr', key: 'tr', name: 'Hopi Türkiye', defCountry: '62', price: 120, serviceHints: ['hopi'], guessCodes: [], icon: 'fa-gift', iconSet: 'fa-solid', bg: 'bg-orange-500/10', color: 'text-orange-300' },
-    { id: 'ms_tr', key: 'tr', name: 'Microsoft Türkiye', defCountry: '62', price: 50, serviceHints: ['microsoft', 'outlook', 'hotmail'], guessCodes: ['mm', 'ms'], icon: 'fa-microsoft', iconSet: 'fa-brands', bg: 'bg-sky-500/10', color: 'text-sky-400' },
-    { id: 'paycell_tr', key: 'tr', name: 'Paycell (Fiziki) Türkiye', defCountry: '62', price: 1500, serviceHints: ['paycell'], guessCodes: [], icon: 'fa-credit-card', iconSet: 'fa-solid', bg: 'bg-amber-500/10', color: 'text-amber-300' },
-    { id: 'paypal_tr', key: 'tr', name: 'PayPal', defCountry: '62', price: 150, serviceHints: ['paypal'], guessCodes: ['mt', 'pp'], icon: 'fa-paypal', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-300' },
-    { id: 'steam_tr', key: 'tr', name: 'Steam Türkiye', defCountry: '62', price: 150, serviceHints: ['steam'], guessCodes: ['st', 'su'], icon: 'fa-steam', iconSet: 'fa-brands', bg: 'bg-slate-500/10', color: 'text-slate-300' }
+    { id: 'tg_tr', key: 'tr', name: 'Telegram Türkiye', serviceCode: 'tg', defCountry: '62', price: 250, icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400', featured: true, dynamicPricing: true },
+    { id: 'tg_co', key: 'co', name: 'Telegram Kolombiya', serviceCode: 'tg', defCountry: '10', price: 200, icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400', dynamicPricing: true },
+    { id: 'tg_us', key: 'us', name: 'Telegram Amerika', serviceCode: 'tg', defCountry: '187', alt: ['12'], price: 200, icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400', dynamicPricing: true },
+    { id: 'tg_gb', key: 'gb', name: 'Telegram İngiltere', serviceCode: 'tg', defCountry: '16', price: 250, icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400', dynamicPricing: true },
+    { id: 'wa_tr', key: 'tr', name: 'WhatsApp Türkiye', serviceCode: 'wa', defCountry: '62', price: 300, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400', featured: true, dynamicPricing: true },
+    { id: 'wa_us', key: 'us', name: 'WhatsApp Amerika', serviceCode: 'wa', defCountry: '187', alt: ['12'], price: 200, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400', dynamicPricing: true },
+    { id: 'wa_sy', key: 'sy', name: 'WhatsApp Suriye', serviceCode: 'wa', defCountry: '199', price: 100, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400', dynamicPricing: true },
+    { id: 'wa_gb', key: 'gb', name: 'WhatsApp İngiltere', serviceCode: 'wa', defCountry: '16', price: 250, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400', dynamicPricing: true },
+    { id: 'wa_sg', key: 'sg', name: 'WhatsApp Singapur', serviceCode: 'wa', defCountry: '52', price: 250, icon: 'fa-whatsapp', iconSet: 'fa-brands', bg: 'bg-violet-500/10', color: 'text-violet-400', dynamicPricing: true },
+    // "Anonim/Rastgele" ürünler: tek bir sabit ülkeye bağlı değil - sistem o anki en GÜVENİLİR (stoklu) VE en UCUZ
+    // ülkeyi otomatik seçer (randomPool + countryCandidates'deki ucuz-önce sıralaması sayesinde). Müşteri belirli bir
+    // ülkede numara alamazsa (sms gelmiyor/stok yok) bu ürünü deneyerek garanti bir numara alabilir.
+    { id: 'wa_anonim', randomPool: ['co', 'us', 'gb', 'sg', 'ph'], name: 'WhatsApp Anonim (Rastgele Ülke)', serviceCode: 'wa', defCountry: '10', price: 300, icon: 'fa-shuffle', iconSet: 'fa-solid', bg: 'bg-violet-500/10', color: 'text-violet-400', featured: true, dynamicPricing: true },
+    { id: 'tg_anonim', randomPool: ['co', 'us', 'gb', 'ph'], name: 'Telegram Anonim (Rastgele Ülke)', serviceCode: 'tg', defCountry: '10', price: 300, icon: 'fa-shuffle', iconSet: 'fa-solid', bg: 'bg-blue-500/10', color: 'text-blue-400', featured: true, dynamicPricing: true },
+    { id: 'pazarama_tr', key: 'tr', name: 'Pazarama Türkiye', defCountry: '62', price: 300, serviceHints: ['pazarama'], guessCodes: [], icon: 'fa-store', iconSet: 'fa-solid', bg: 'bg-amber-500/10', color: 'text-amber-300', dynamicPricing: true },
+    { id: 'sahibinden_tr', key: 'tr', name: 'Sahibinden Türkiye', defCountry: '62', price: 200, serviceHints: ['sahibinden'], guessCodes: [], icon: 'fa-shop', iconSet: 'fa-solid', bg: 'bg-amber-500/10', color: 'text-amber-300', dynamicPricing: true },
+    { id: 'dolap_tr', key: 'tr', name: 'Dolap Türkiye', defCountry: '62', price: 350, serviceHints: ['dolap'], guessCodes: [], icon: 'fa-shirt', iconSet: 'fa-solid', bg: 'bg-pink-500/10', color: 'text-pink-400', dynamicPricing: true },
+    // NOT: Letgo için admin fiyat belirtmedi - 250 TL geçici/varsayılan fiyat olarak ayarlandı, admin panelden değiştirilebilir.
+    { id: 'letgo_tr', key: 'tr', name: 'Letgo Türkiye', defCountry: '62', price: 250, serviceHints: ['letgo'], guessCodes: [], icon: 'fa-tag', iconSet: 'fa-solid', bg: 'bg-orange-500/10', color: 'text-orange-300', dynamicPricing: true },
+    { id: 'uber_tr', key: 'tr', name: 'Uber Türkiye', defCountry: '62', price: 200, serviceHints: ['uber'], guessCodes: ['ub'], icon: 'fa-uber', iconSet: 'fa-brands', bg: 'bg-slate-500/10', color: 'text-slate-200', dynamicPricing: true },
+    { id: 'paycell_tr', key: 'tr', name: 'Paycell Türkiye', defCountry: '62', price: 250, serviceHints: ['paycell'], guessCodes: [], icon: 'fa-credit-card', iconSet: 'fa-solid', bg: 'bg-amber-500/10', color: 'text-amber-300', dynamicPricing: true },
+    { id: 'trendyolgo_tr', key: 'tr', name: 'Trendyol Go', defCountry: '62', price: 250, serviceHints: ['trendyol go', 'trendyolgo'], guessCodes: [], icon: 'fa-motorcycle', iconSet: 'fa-solid', bg: 'bg-orange-500/10', color: 'text-orange-400', dynamicPricing: true },
+    { id: 'paypal_tr', key: 'tr', name: 'PayPal Türkiye', defCountry: '62', price: 250, serviceHints: ['paypal'], guessCodes: ['mt', 'pp'], icon: 'fa-paypal', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-300', dynamicPricing: true },
+    { id: 'trendyol_tr', key: 'tr', name: 'Trendyol', defCountry: '62', price: 200, serviceHints: ['trendyol'], guessCodes: [], icon: 'fa-bag-shopping', iconSet: 'fa-solid', bg: 'bg-orange-500/10', color: 'text-orange-400', dynamicPricing: true },
+    { id: 'ds_tr', key: 'tr', name: 'Discord Türkiye', defCountry: '62', price: 100, serviceHints: ['discord'], guessCodes: ['ds', 'dc'], icon: 'fa-discord', iconSet: 'fa-brands', bg: 'bg-indigo-500/10', color: 'text-indigo-400', dynamicPricing: true },
+    { id: 'ap_tr', key: 'tr', name: 'Apple Türkiye', defCountry: '62', price: 200, serviceHints: ['apple', 'icloud'], guessCodes: ['mz', 'ap'], icon: 'fa-apple', iconSet: 'fa-brands', bg: 'bg-slate-500/10', color: 'text-slate-300', dynamicPricing: true }
 ];
 // Admin panelden elle eklenmiş ürünler (disk'ten yüklendi) - sunucu her yeniden başladığında CATALOG'a geri eklenir,
 // böylece admin'in eklediği ürünler bir Render yeniden başlatmasıyla kaybolmaz.
@@ -348,7 +358,10 @@ const KEY_HINTS = {
     tr: ['turkey', 'turkiye', 'турци', 'turkiye cumhuriyeti'],
     ph: ['philippines', 'филиппин', 'filipin'],
     us: ['usa', 'united states', 'сша', 'amerika birlesik'],
-    co: ['colombia', 'kolombiya', 'колумби']
+    co: ['colombia', 'kolombiya', 'колумби'],
+    gb: ['united kingdom', 'britain', 'ingiltere', 'англ', 'great britain'],
+    sg: ['singapore', 'singapur', 'сингапур'],
+    sy: ['syria', 'suriye', 'сирия']
 };
 function nameHas(key, n) {
     const t = normTr(n);
@@ -436,11 +449,21 @@ async function fetchServicePrices(serviceCode) {
 async function countryCandidates(item, serviceCode) {
     const { map, all } = await resolveCountries();
     const nameList = [];
-    const primary = map[item.key] || item.defCountry;
-    nameList.push(primary);
-    (all[item.key] || []).forEach(id => { if (!nameList.includes(id)) nameList.push(id); });
-    (item.alt || []).forEach(id => { if (!nameList.includes(id)) nameList.push(id); });
-    if (!nameList.includes(item.defCountry)) nameList.push(item.defCountry);
+    if (item.randomPool && item.randomPool.length) {
+        // "Anonim/Rastgele" ürünler: tek bir key'e değil, bir ÜLKE HAVUZUNA bağlı - havuzdaki her ülkenin
+        // bilinen tüm aday ID'leri birleştirilir, aşağıdaki ucuz-önce sıralaması en iyisini otomatik seçer.
+        item.randomPool.forEach(k => {
+            const p = map[k]; if (p && !nameList.includes(p)) nameList.push(p);
+            (all[k] || []).forEach(id => { if (!nameList.includes(id)) nameList.push(id); });
+        });
+        if (item.defCountry && !nameList.includes(item.defCountry)) nameList.push(item.defCountry);
+    } else {
+        const primary = map[item.key] || item.defCountry;
+        nameList.push(primary);
+        (all[item.key] || []).forEach(id => { if (!nameList.includes(id)) nameList.push(id); });
+        (item.alt || []).forEach(id => { if (!nameList.includes(id)) nameList.push(id); });
+        if (!nameList.includes(item.defCountry)) nameList.push(item.defCountry);
+    }
 
     const prices = await fetchServicePrices(serviceCode || item.serviceCode);
     // Önce en UCUZ maliyetli adayı dene (kâr marjını korumak için pahalı seçenek asla önce denenmez),
