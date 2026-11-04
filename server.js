@@ -10,14 +10,14 @@ app.use(bodyParser.json());
 
 // Her yeni dosya teslim edildiğinde bu tarihi değiştiriyoruz. Sitenin en altında küçük yazıyla görünür -
 // Render'a yüklediğin sürümün gerçekten güncellenip güncellenmediğini buradan kontrol edebilirsin.
-const APP_VERSION = '2026-11-01-15';
+const APP_VERSION = '2026-11-01-16';
 
 // ====== AYARLAR (Render > Environment bölümünden de girilebilir) ======
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '9264065416:AAEf6HlYGJSJLWtAalLhA8C82w2-vyIrzsY';
-const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '8935662812';
-const ADMIN_TELEGRAM_USERNAME = process.env.ADMIN_TELEGRAM_USERNAME || '@sonpatronn'; // destek için görünen iletişim kanalı
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8989904538:AAGETyb0e5ghitsYM3yWInhnIi3lexYMjPw';
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '8811977430';
+const ADMIN_TELEGRAM_USERNAME = process.env.ADMIN_TELEGRAM_USERNAME || 'vipankaa'; // destek için görünen iletişim kanalı
 const ADMIN_WHATSAPP = process.env.ADMIN_WHATSAPP || '573181006792'; // wa.me linki için ülke koduyla, başında + ve boşluk olmadan
-const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || 'https://sonpanelanka-1.onrender.com';
+const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || 'https://g-venlipanelsms.onrender.com';
 // ====== SAĞLAYICI: sms.tc (SMS-Activate uyumlu uç nokta) ======
 // sms.tc'nin kendi dokümantasyonu doğrulandı: /stubs/handler_api.php, OnaylaSMS ile BİREBİR aynı
 // SMS-Activate protokolünü konuşuyor (ACCESS_NUMBER:id:phone, STATUS_OK:code, NO_NUMBERS, NO_BALANCE,
@@ -262,43 +262,14 @@ const SERVICE_INFO = {
 };
 
 // ====== SMM KATALOĞU (Instagram takipçi/beğeni vb.) ======
-// Numara satışından FARKLI: sabit fiyat yok, müşteri link + miktar giriyor, fiyat = (pricePerThousand/1000)*miktar.
-// serviceId/pricePerThousand/min/max admin panelden ayarlanır (db.smmConfig) - admin ayarlamadan ürün müşteriye görünmez.
-const SMM_CATALOG = [
-    { id: 'ig_followers', name: 'Instagram Takipçi', icon: 'fa-user-plus', iconSet: 'fa-solid', bg: 'bg-pink-500/10', color: 'text-pink-400', linkLabel: 'Profil linki (örn: https://instagram.com/kullaniciadi)' },
-    { id: 'ig_likes', name: 'Instagram Beğeni', icon: 'fa-heart', iconSet: 'fa-solid', bg: 'bg-pink-500/10', color: 'text-pink-400', linkLabel: 'Gönderi linki (örn: https://instagram.com/p/xxxxx)' }
-];
+// 2026-11-01: Admin isteğiyle TikTok/Instagram hizmetleri panelden tamamen kaldırıldı - panelde sadece
+// sms.tc'den çekilen numaralar (CATALOG) satılıyor. Dizi boş bırakıldı, ona bağlı tüm uç noktalar/arayüz
+// otomatik olarak boş/gizli davranıyor (kod güvenliği için silinmedi, sadece devre dışı).
+const SMM_CATALOG = [];
 
 // ====== ELDEN SATIŞ KATALOĞU (Instagram/TikTok/Telegram takipçi-beğeni-abone) ======
-// Bunlar panel bakiyesinden OTOMATİK satın alınmaz - sadece fiyat listesi olarak gösterilir, müşteri
-// Telegram'dan admine (ADMIN_TELEGRAM_USERNAME) yazıp elden satın alır. Hiçbir sağlayıcı API'sine bağlı değil.
-const MANUAL_SOCIAL_CATALOG = [
-    { category: 'Instagram Takipçi', icon: 'fa-instagram', iconSet: 'fa-brands', bg: 'bg-pink-500/10', color: 'text-pink-400', packages: [
-        { label: '50 Takipçi', price: 60 },
-        { label: '100 Takipçi', price: 100 },
-        { label: '250 Takipçi', price: 200 },
-        { label: '500 Takipçi', price: 420 },
-        { label: '1000 Takipçi', price: 700 }
-    ]},
-    { category: 'Instagram Beğeni', icon: 'fa-instagram', iconSet: 'fa-brands', bg: 'bg-pink-500/10', color: 'text-pink-400', packages: [
-        { label: '50 Beğeni', price: 25 },
-        { label: '250 Beğeni', price: 100 },
-        { label: '1000 Beğeni', price: 250 },
-        { label: '5000 Beğeni', price: 900 }
-    ]},
-    { category: 'TikTok Takipçi', icon: 'fa-tiktok', iconSet: 'fa-brands', bg: 'bg-slate-500/10', color: 'text-slate-200', packages: [
-        { label: '50 Takipçi', price: 80 },
-        { label: '250 Takipçi', price: 300 },
-        { label: '1000 Takipçi', price: 900 }
-    ]},
-    { category: 'Telegram Kanal/Grup Abonesi', icon: 'fa-telegram', iconSet: 'fa-brands', bg: 'bg-blue-500/10', color: 'text-blue-400', packages: [
-        { label: '100 Abone', price: 60 },
-        { label: '250 Abone', price: 120 },
-        { label: '500 Abone', price: 220 },
-        { label: '1000 Abone', price: 400 },
-        { label: '2500 Abone', price: 900 }
-    ]}
-];
+// 2026-11-01: Admin isteğiyle kaldırıldı - panelde sadece sms.tc numaraları satılıyor.
+const MANUAL_SOCIAL_CATALOG = [];
 
 // ====== Sağlayıcının TÜM servis kodu/isim listesi (isimden kod bulmak için) - 1 saatte bir yenile ======
 let servicesListCache = { time: 0, byCode: {} };
@@ -628,7 +599,14 @@ app.post('/api/admin/setOtherPlatformsMarkup', (req, res) => {
 app.get('/api/getServices', (req, res) => {
     const list = CATALOG.map(item => {
         const meta = (item.icon ? item : SERVICE_INFO[item.serviceCode]) || {};
-        return { id: item.id, name: item.name, price: item.price, icon: meta.icon || 'fa-circle', iconSet: meta.iconSet || 'fa-solid', bg: meta.bg || 'bg-violet-500/10', color: meta.color || 'text-violet-400', featured: !!item.featured };
+        // "group" ve "country" sadece arayüzdeki kategori sekmeleri/ülke etiketleri içindir (filtreleme amaçlı) -
+        // satın alma mantığını etkilemez, o yine serviceCode/key üzerinden çalışır.
+        let group = 'other';
+        if (item.serviceCode === 'wa') group = 'wa';
+        else if (item.serviceCode === 'tg') group = 'tg';
+        else if (item.id.indexOf('ds_') === 0) group = 'ds';
+        const country = item.randomPool ? 'random' : (item.key || null);
+        return { id: item.id, name: item.name, price: item.price, icon: meta.icon || 'fa-circle', iconSet: meta.iconSet || 'fa-solid', bg: meta.bg || 'bg-violet-500/10', color: meta.color || 'text-violet-400', featured: !!item.featured, group, country };
     });
     res.json({ success: true, services: list });
 });
@@ -1242,6 +1220,22 @@ app.get('/api/myOrders', (req, res) => {
     res.json({ success: true, orders: list });
 });
 
+// ====== TÜM SİPARİŞ GEÇMİŞİ (müşteri panelindeki "Siparişlerim" sekmesi için) ======
+// /api/myOrders yukarıdaki sadece son birkaç dakikalık aktif siparişleri döndürüyor (canlı sayaç yeniden
+// bağlanması içindi). Bu uç nokta ise süre sınırı olmadan kullanıcının TÜM geçmiş siparişlerini döndürür.
+app.get('/api/myAllOrders', (req, res) => {
+    const { username } = req.query;
+    if (!db.users[username]) return res.json({ success: false, orders: [] });
+    const list = Object.values(db.orders)
+        .filter(o => o.username === username)
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .map(o => ({
+            activationId: o.activationId, phoneNumber: o.phoneNumber, productName: o.productName,
+            status: o.status, code: o.code, price: o.price, time: o.time
+        }));
+    res.json({ success: true, orders: list });
+});
+
 // ====== NUMARA İPTAL ======
 app.post('/api/cancelNumber', async (req, res) => {
     const { activationId, username } = req.body;
@@ -1352,104 +1346,103 @@ app.get('/', (req, res) => {
         <script src="https://cdn.tailwindcss.com"></script>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
         <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
-            body { background: radial-gradient(ellipse at 50% 20%, #12031a 0%, #0a0313 42%, #030108 100%); font-family: 'Manrope', sans-serif; }
-            h1, h2, h3, .anka, .vipBadge, .font-black { font-family: 'Syne', sans-serif; }
-            #emberCanvas { position: fixed; inset: 0; z-index: 0; }
-            .anka { background: linear-gradient(90deg,#f3eaff,#a78bfa,#7c3aed,#a78bfa,#f3eaff); background-size: 300% auto; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 4s linear infinite; }
-            @keyframes shimmer { to { background-position: 300% center; } }
-            .vipBadge { display: inline-block; margin-left: 8px; padding: 2px 10px; font-size: 11px; font-weight: 900; letter-spacing: 2px; color: #15041f; background: linear-gradient(90deg,#67e8f9,#22d3ee,#67e8f9); background-size: 200% auto; border-radius: 6px; animation: shine 3s linear infinite; vertical-align: middle; box-shadow: 0 0 12px rgba(167,139,250,.5); }
-            @keyframes shine { to { background-position: 200% center; } }
-            .glassCard { background: rgba(18,5,24,.55); border: 1px solid rgba(167,139,250,.28); box-shadow: 0 0 60px rgba(139,92,246,.12), inset 0 0 40px rgba(167,139,250,.04); backdrop-filter: blur(10px); }
-            .ring { position: absolute; inset: -30px; border-radius: 50%; border: 1px solid rgba(167,139,250,.25); animation: spin 18s linear infinite; }
-            .ring2 { position: absolute; inset: -60px; border-radius: 50%; border: 1px dashed rgba(34,211,238,.15); animation: spin 28s linear infinite reverse; }
-            @keyframes spin { to { transform: rotate(360deg); } }
-            .introStage { opacity: 0; transform: translateY(22px) scale(.94); animation: introIn 1s cubic-bezier(.16,.84,.44,1) forwards; }
-            @keyframes introIn { to { opacity: 1; transform: none; } }
-            .introFlash { position: absolute; inset: 0; background: radial-gradient(circle at 50% 45%, rgba(167,139,250,.55) 0%, rgba(167,139,250,0) 60%); animation: flashOut 1.4s ease-out forwards; pointer-events: none; }
-            @keyframes flashOut { 0% { opacity: 1; transform: scale(.3); } 100% { opacity: 0; transform: scale(2.2); } }
-            .introScan { position: absolute; left: 0; right: 0; height: 140px; pointer-events: none; background: linear-gradient(180deg, rgba(167,139,250,0) 0%, rgba(167,139,250,.14) 45%, rgba(34,211,238,.08) 55%, rgba(167,139,250,0) 100%); animation: scanSweep 2.6s cubic-bezier(.4,0,.2,1) infinite; z-index: 1; }
-            @keyframes scanSweep { 0% { top: -140px; } 100% { top: 100%; } }
-            .pingRing { position: absolute; width: 90px; height: 90px; border-radius: 50%; border: 1.5px solid rgba(167,139,250,.8); z-index: 1; opacity: 0; pointer-events: none; }
-            .pingRing.go { animation: pingOut 1.1s cubic-bezier(.2,.7,.3,1) forwards; }
-            @keyframes pingOut { 0% { opacity: .85; transform: scale(.4); } 100% { opacity: 0; transform: scale(3.6); } }
-            .modalPop { animation: modalPopIn .4s cubic-bezier(.2,.9,.3,1.1); }
-            @keyframes modalPopIn { 0% { opacity: 0; transform: translateY(18px) scale(.93); } 100% { opacity: 1; transform: none; } }
-            @keyframes introGlitch { 0%,100% { transform: none; filter: none; } 92% { transform: translate(1px,0); } 94% { transform: translate(-1.5px,.5px); filter: hue-rotate(10deg); } 96% { transform: translate(1px,-.5px); } }
-            #introPhoenix.introStage, h1.anka.introStage { animation: introIn 1s cubic-bezier(.16,.84,.44,1) forwards, introGlitch 3.2s ease-in-out .9s 1; }
-            .phoenixWrap { width: min(360px,78vw); margin: 0 auto; position: relative; }
-            .phoenixWrap svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 0 28px rgba(167,139,250,.65)); }
-            .wingR { transform-origin: 0 0; animation: wingFlap 1.6s ease-in-out infinite; }
-            @keyframes wingFlap { 0%,100% { transform: rotate(6deg); } 50% { transform: rotate(-10deg); } }
-            .birdFloat { animation: floaty 3.2s ease-in-out infinite; }
-            @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
-            .tailE { transform-origin: 0 0; animation: tailSway 2.8s ease-in-out infinite alternate; }
-            @keyframes tailSway { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
-            .spark { opacity: 0; animation: sparkUp 2.6s ease-in infinite; }
-            @keyframes sparkUp { 0% { opacity: 0; transform: translateY(0); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(-70px); } }
-            .fadeUp { animation: fadeUp 1.1s ease both; }
-            @keyframes fadeUp { from { opacity: 0; transform: translateY(26px) scale(.96); } to { opacity: 1; transform: none; } }
-            .blink { animation: blink 1s steps(2) infinite; }
+            /* ====== ANKA SMS - TASARIM SİSTEMİ (2026-11-04 baştan tasarlandı) ======
+               Önceki "VIP/mor-neon anka kuşu" teması kalabalık ve şablon gibi görünüyordu - admin'in isteğiyle
+               sade, hızlı, kendine özgü bir arayüze geçildi. Tek bir vurgu rengi (sinyal amber) + nötr koyu
+               zemin; animasyon sadece anlamlı anlarda (satın alma onayı, bildirimler) kullanılıyor. */
+            :root {
+                --bg: #0B0E13; --surface: #141921; --surface-2: #1B212B; --border: #262D38;
+                --text: #EEF1F5; --text-muted: #8B93A3; --accent: #E8A33D; --accent-ink: #1A1206;
+                --success: #3DBD82; --danger: #E2574C;
+            }
+            * { box-sizing: border-box; }
+            body { background: var(--bg); color: var(--text); font-family: 'Manrope', sans-serif; -webkit-font-smoothing: antialiased; }
+            h1, h2, h3, .anka, .font-black, button { font-family: 'Space Grotesk', sans-serif; }
+            ::selection { background: var(--accent); color: var(--accent-ink); }
+            a { color: inherit; }
+            .anka { color: var(--text); letter-spacing: -.01em; }
+            .glassCard { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; }
+            .fadeUp { animation: fadeUp .5s cubic-bezier(.16,.84,.44,1) both; }
+            @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+            .blink { animation: blink 1.1s steps(2) infinite; }
             @keyframes blink { 50% { opacity: 0; } }
-            .vipCard { border: 1px solid rgba(34,211,238,.45) !important; }
-            .bg-slate-900, .bg-slate-950 { background-color: rgba(18,6,26,.82) !important; }
-            header { backdrop-filter: blur(6px); box-shadow: 0 0 30px rgba(139,92,246,.12); }
 
-            /* ====== DERİNLİK KATMANI: süzülen ışık küreleri + doku (gerçek 3D değil ama cam/derinlik hissi, hafif ve mobilde de akıcı) ====== */
-            .orbField { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
-            .orb { position: absolute; border-radius: 50%; filter: blur(60px); will-change: transform; opacity: .5; }
-            .orb1 { width: 46vmax; height: 46vmax; left: -14vmax; top: -16vmax; background: radial-gradient(circle,rgba(167,139,250,.35),transparent 70%); animation: driftA 26s ease-in-out infinite; }
-            .orb2 { width: 38vmax; height: 38vmax; right: -12vmax; top: 10vmax; background: radial-gradient(circle,rgba(34,211,238,.22),transparent 70%); animation: driftB 32s ease-in-out infinite; }
-            .orb3 { width: 50vmax; height: 50vmax; left: 20vmax; bottom: -22vmax; background: radial-gradient(circle,rgba(139,92,246,.25),transparent 70%); animation: driftC 38s ease-in-out infinite; }
-            @keyframes driftA { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(6vmax,8vmax) scale(1.15); } }
-            @keyframes driftB { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-7vmax,5vmax) scale(1.1); } }
-            @keyframes driftC { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-4vmax,-9vmax) scale(1.08); } }
-            .grainOverlay { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: .05; mix-blend-mode: overlay; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+            /* ====== Ürün kartları: sade, durgun; sadece odaklanınca hafif belirginleşir ====== */
+            .prodCard { background: var(--surface); border: 1px solid var(--border); transition: border-color .2s ease, background-color .2s ease; }
+            .prodCard:hover { border-color: #3A4354; background: var(--surface-2); }
+            .prodIcon { background: var(--surface-2); border: 1px solid var(--border); color: var(--accent); }
+            .featuredCard { border-color: rgba(232,163,61,.4) !important; }
 
-            /* ====== Ürün kartları: hafif kalkma + parlama, gerçek cam/VIP hissi ====== */
-            .prodCard { transform: translateZ(0); transition: transform .35s cubic-bezier(.16,.84,.44,1), box-shadow .35s ease, border-color .35s ease; }
-            .prodCard:hover { transform: translateY(-5px); border-color: rgba(167,139,250,.55) !important; box-shadow: 0 16px 40px -12px rgba(139,92,246,.35), 0 0 0 1px rgba(34,211,238,.08); }
-            .prodIcon { transition: transform .4s ease, box-shadow .4s ease; }
-            .prodCard:hover .prodIcon { transform: scale(1.08) rotate(-4deg); box-shadow: 0 0 22px rgba(167,139,250,.35); }
-            .featuredCard { box-shadow: 0 0 0 1px rgba(34,211,238,.12), 0 14px 34px -14px rgba(34,211,238,.3); }
-            .featuredCard:hover { border-color: rgba(34,211,238,.7) !important; box-shadow: 0 16px 40px -12px rgba(34,211,238,.4); }
+            /* ====== Buton/aktif durum stilleri ====== */
+            .btnAccent { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+            .btnAccent:hover { background: #F0B25C; }
+            .chip { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); white-space: nowrap; transition: border-color .15s ease, color .15s ease; }
+            .chip:hover { color: var(--text); }
+            .chip.active { background: var(--accent); border-color: var(--accent); color: var(--accent-ink) !important; font-weight: 700; }
+            .tabBtn { color: var(--text-muted); border-bottom: 2px solid transparent; }
+            .tabBtn.active { color: var(--text) !important; border-bottom-color: var(--accent); }
 
-            /* ====== Işık geçişli butonlar ====== */
+            /* ====== Işık geçişli butonlar (korundu, ama sade) ====== */
             .shineBtn { position: relative; overflow: hidden; }
-            .shineBtn::after { content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(115deg,transparent,rgba(255,255,255,.35),transparent); transform: skewX(-20deg); transition: left .6s ease; }
+            .shineBtn::after { content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(115deg,transparent,rgba(255,255,255,.18),transparent); transform: skewX(-20deg); transition: left .5s ease; }
             .shineBtn:hover::after { left: 130%; }
 
-            /* ====== Aktif numara kartı: satın alma sonrası net görünürlük ====== */
+            /* ====== Aktif numara kartı: satın alma sonrası net görünürlük, tek seferlik vurgulama ====== */
             #activeOrderWrap { position: relative; }
             #activeOrderWrap.hasOrders #activeOrderHeading { display: flex; }
-            .orderFlashCard { animation: orderGlow 2.2s ease-out 1; }
+            .orderFlashCard { animation: orderGlow 1.4s ease-out 1; }
             @keyframes orderGlow {
-                0% { box-shadow: 0 0 0 0 rgba(167,139,250,.75), 0 0 40px rgba(167,139,250,.55); border-color: rgba(167,139,250,1); }
-                100% { box-shadow: 0 0 0 0 rgba(167,139,250,0), 0 0 0 rgba(167,139,250,0); }
+                0% { box-shadow: 0 0 0 0 rgba(232,163,61,.5); border-color: var(--accent) !important; }
+                100% { box-shadow: 0 0 0 0 rgba(232,163,61,0); }
             }
-            #toastStack { position: fixed; top: 86px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; max-width: 92vw; }
-            .appToast { pointer-events: auto; background: linear-gradient(135deg,rgba(21,6,31,.96),rgba(18,6,26,.96)); border: 1px solid rgba(167,139,250,.55); box-shadow: 0 10px 36px -8px rgba(139,92,246,.5); color: #f5f3ff; padding: 14px 18px; border-radius: 14px; font-size: .9rem; font-weight: 600; display: flex; align-items: center; gap: 10px; animation: toastIn .35s ease, toastOut .4s ease 3.6s forwards; max-width: 360px; }
-            @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
-            @keyframes toastOut { to { opacity: 0; transform: translateX(40px); } }
+            #toastStack { position: fixed; top: 16px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; max-width: 92vw; }
+            .appToast { pointer-events: auto; background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid var(--accent); color: var(--text); padding: 13px 16px; border-radius: 12px; font-size: .88rem; font-weight: 600; display: flex; align-items: center; gap: 10px; animation: toastIn .3s ease, toastOut .3s ease 3.6s forwards; max-width: 360px; box-shadow: 0 10px 30px -10px rgba(0,0,0,.5); }
+            @keyframes toastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+            @keyframes toastOut { to { opacity: 0; transform: translateY(-8px); } }
             @media (max-width: 640px) {
-                #toastStack { left: 12px; right: 12px; top: 76px; max-width: unset; }
+                #toastStack { left: 12px; right: 12px; top: 12px; max-width: unset; }
                 .appToast { max-width: unset; }
             }
 
-            /* ====== Mobil incelikler ====== */
+            /* ====== Tailwind'in varsayılan renk paletini tek bir marka diline eşliyoruz ======
+               Dosyanın geri kalanında (admin panel dahil) hâlâ Tailwind'in violet/blue/pink vb. sınıfları
+               kullanılıyor - her şablon dizesini tek tek değiştirmek yerine, o sınıfları burada yeni tasarım
+               diline eşliyoruz. Böylece TEK renk sistemi (amber vurgu + nötr koyu yüzeyler) tüm panelde geçerli
+               olur; kart/servis ikonlarındaki mavi/turuncu/pembe gibi ayırt edici renkler bilinçli olarak
+               kalıyor (hangi serviste olduğunu ayırt etmeye yarıyor), sadece doygunlukları törpülendi. */
+            .bg-violet-500\/10, .bg-violet-500\/15 { background-color: rgba(232,163,61,.12) !important; }
+            .bg-violet-500\/20, .bg-violet-600\/20, .bg-violet-900\/30, .hover\:bg-violet-900\/30:hover { background-color: rgba(232,163,61,.18) !important; }
+            .bg-violet-600, .bg-violet-500 { background-color: var(--accent) !important; color: var(--accent-ink) !important; }
+            .hover\:bg-violet-500:hover, .hover\:bg-violet-600:hover { background-color: #F0B25C !important; }
+            .text-violet-300, .text-violet-400, .text-violet-200\/60, .text-violet-200\/70 { color: var(--accent) !important; }
+            .text-violet-200\/30, .text-violet-200\/40, .text-violet-300\/60 { color: var(--text-muted) !important; }
+            .border-violet-500, .border-violet-500\/15, .border-violet-500\/20, .border-violet-500\/25, .border-violet-500\/30, .border-violet-500\/40 { border-color: var(--border) !important; }
+            .focus\:border-violet-500:focus { border-color: var(--accent) !important; }
+            .bg-slate-900, .bg-slate-950 { background-color: var(--surface) !important; }
+            .bg-black\/40 { background-color: var(--surface-2) !important; }
+            .bg-black\/85 { background-color: rgba(8,10,14,.88) !important; }
+            header { background: var(--surface); border-color: var(--border) !important; }
+            .bg-blue-500\/10 { background-color: rgba(96,165,250,.1) !important; }
+            .bg-blue-600 { background-color: #3B6FD6 !important; }
+            .hover\:bg-blue-500:hover { background-color: #4D7FE0 !important; }
+            .bg-pink-500\/10 { background-color: rgba(232,163,61,.08) !important; }
+            .bg-pink-600 { background-color: var(--accent) !important; }
+            .hover\:bg-pink-500:hover { background-color: #F0B25C !important; }
+            .bg-amber-400 { background-color: var(--accent) !important; }
+            .hover\:bg-amber-300:hover { background-color: #F0B25C !important; }
+            .text-slate-100, .text-slate-200, .text-slate-300 { color: var(--text) !important; }
+            .text-slate-400, .text-slate-500, .text-slate-600 { color: var(--text-muted) !important; }
+
+            /* ====== Mobil ====== */
             @media (max-width: 640px) {
-                /* Header'ı dikeyde iki bloğa ayır: logo üstte, kullanıcı/bakiye alanı altta tam genişlikte -
-                   önceden ikisi tek satıra sığmaya çalışıp üst üste biniyordu ("yazılar kaymış" şikayeti buradan). */
                 header { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
                 header > div:first-child { justify-content: center; }
                 #contactCapsule { order: 3; }
                 #userArea { width: 100%; }
                 #userArea > div { width: 100%; }
                 #userArea .flex { width: 100%; justify-content: center; }
-                .anka { font-size: 1.35rem !important; }
-                .orb1, .orb2, .orb3 { filter: blur(40px); }
-                /* Mobilde yazılar/butonlar çok küçük görünüyordu - okunabilirlik için büyütüldü */
                 body { font-size: 15.5px; overflow-x: hidden; }
                 .text-\[10px\] { font-size: .76rem !important; }
                 .text-xs { font-size: .85rem !important; line-height: 1.3rem !important; }
@@ -1460,87 +1453,38 @@ app.get('/', (req, res) => {
                 .prodCard { padding: .9rem !important; gap: 10px; }
                 .prodCard h3.truncate { max-width: 38vw; }
                 #depositModal .glassCard, #authModal .glassCard { width: 94vw; max-width: 94vw; padding: 1.5rem !important; margin: 0 auto; }
+                .catTabs, .countryChips { -webkit-overflow-scrolling: touch; }
             }
             @media (prefers-reduced-motion: reduce) {
-                .orb1, .orb2, .orb3, .prodCard, .shineBtn::after, .wingR, .birdFloat, .tailE, .spark, .anka, .vipBadge { animation: none !important; transition: none !important; }
+                .prodCard, .fadeUp, .shineBtn::after { animation: none !important; transition: none !important; }
             }
         </style>
     </head>
     <body class="text-slate-100 font-sans min-h-screen flex flex-col justify-between">
-        <canvas id="emberCanvas"></canvas>
-        <div class="orbField"><div class="orb orb1"></div><div class="orb orb2"></div><div class="orb orb3"></div></div>
-        <div class="grainOverlay"></div>
         <div id="toastStack"></div>
-        <template id="phoenixTpl">
-            <svg viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Anka amblemi">
-            <defs>
-                <linearGradient id="gBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3eaff"/><stop offset=".45" stop-color="#a78bfa"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
-                <linearGradient id="gWingR" x1="0" y1="0" x2="1" y2=".2"><stop offset="0" stop-color="#e0f7ff"/><stop offset=".4" stop-color="#22d3ee"/><stop offset=".75" stop-color="#8b5cf6"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
-                <linearGradient id="gWingL" x1="0" y1="0" x2="1" y2=".2"><stop offset="0" stop-color="#e0f7ff"/><stop offset=".4" stop-color="#22d3ee"/><stop offset=".75" stop-color="#8b5cf6"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
-                <filter id="eGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-            </defs>
-            <polygon points="200,8 362,100 362,284 200,376 38,284 38,100" fill="none" stroke="#8b5cf6" stroke-opacity=".35" stroke-width="2"/>
-            <polygon points="200,34 338,112 338,272 200,350 62,272 62,112" fill="none" stroke="#22d3ee" stroke-opacity=".25" stroke-width="1" stroke-dasharray="6 7"/>
-            <g class="birdFloat" filter="url(#eGlow)">
-              <g transform="translate(200 185)"><g class="wingR">
-                <polygon points="0,0 150,-64 128,-28 150,-2 118,6 136,24 100,22 108,44 76,32 72,54 50,30 36,40" fill="url(#gWingR)" stroke="#f3eaff" stroke-opacity=".5" stroke-width="1.5"/>
-              </g></g>
-              <g transform="translate(200 185) scale(-1 1)"><g class="wingR">
-                <polygon points="0,0 150,-64 128,-28 150,-2 118,6 136,24 100,22 108,44 76,32 72,54 50,30 36,40" fill="url(#gWingL)" stroke="#f3eaff" stroke-opacity=".5" stroke-width="1.5"/>
-              </g></g>
-              <g transform="translate(200 220)"><g class="tailE">
-                <polygon points="0,0 -40,120 -14,70 0,150 14,70 40,120" fill="url(#gBody)" opacity=".9"/>
-              </g></g>
-              <polygon points="200,96 222,150 212,230 200,268 188,230 178,150" fill="url(#gBody)" stroke="#f3eaff" stroke-opacity=".6" stroke-width="1.5"/>
-              <polygon points="200,56 214,96 200,112 186,96" fill="#f3eaff"/>
-              <polygon points="200,34 207,58 200,70 193,58" fill="#22d3ee"/>
-            </g>
-            <g class="sparkLayer">
-              <circle class="spark" cx="130" cy="300" r="2.2" fill="#c4b5fd" style="animation-delay:.2s"/>
-              <circle class="spark" cx="270" cy="300" r="2.2" fill="#22d3ee" style="animation-delay:1s"/>
-              <circle class="spark" cx="200" cy="330" r="2" fill="#c4b5fd" style="animation-delay:1.8s"/>
-              <circle class="spark" cx="160" cy="60" r="1.8" fill="#22d3ee" style="animation-delay:.6s"/>
-              <circle class="spark" cx="245" cy="70" r="1.8" fill="#c4b5fd" style="animation-delay:1.4s"/>
-            </g>
-            </svg>
-        </template>
-
-        <div id="intro" style="position:fixed;inset:0;z-index:100;background:radial-gradient(ellipse at 50% 35%,rgba(19,4,27,.92) 0%,rgba(7,2,11,.96) 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .9s ease;cursor:pointer;overflow:hidden" onclick="closeIntro()">
-            <div class="introFlash"></div>
-            <div class="introScan"></div>
-            <div id="introPing" class="pingRing" style="top:50%;left:50%;margin:-45px 0 0 -45px"></div>
-            <div class="ring introStage" style="z-index:1;animation-delay:.05s"></div>
-            <div class="ring2 introStage" style="z-index:1;animation-delay:.05s"></div>
-            <span class="vipBadge introStage" style="z-index:1;animation-delay:.15s;letter-spacing:3px">VIP ERİŞİM</span>
-            <div id="introPhoenix" class="phoenixWrap introStage" style="width:min(260px,62vw);z-index:1;animation-delay:.3s"></div>
-            <h1 class="anka text-4xl md:text-6xl font-black tracking-widest mt-4 introStage" style="z-index:1;animation-delay:.55s">ANKA SMS</h1>
-            <p class="text-violet-200/60 text-xs font-mono mt-1 tracking-widest introStage" style="z-index:1;animation-delay:.7s">KÜLLERİNDEN DOĞAN GÜVENLİ SİSTEM</p>
-            <div id="introLog" class="introStage" style="z-index:1;animation-delay:.85s;margin-top:22px;font-family:monospace;color:#a78bfa;font-size:13px;min-height:70px;text-align:center"></div>
-            <div class="introStage" style="z-index:1;animation-delay:.85s;margin-top:10px;width:260px;height:3px;background:rgba(167,139,250,.15);border-radius:4px;overflow:hidden"><div id="introBar" style="height:100%;width:0;background:linear-gradient(90deg,#22d3ee,#a78bfa);transition:width .6s ease;box-shadow:0 0 10px #a78bfa"></div></div>
-            <p class="text-violet-200/30 text-[10px] mt-5 introStage" style="z-index:1;animation-delay:1s">(geçmek için dokun)</p>
-        </div>
 
         <div class="max-w-5xl mx-auto w-full p-4 relative z-10">
-            <header class="flex justify-between items-center py-4 px-6 border border-violet-500/25 mb-6 rounded-2xl shadow-2xl">
+            <header class="flex justify-between items-center py-3.5 px-5 border border-[var(--border)] mb-6 rounded-2xl">
                 <div class="flex items-center gap-3">
                     <div class="bg-violet-500/15 p-2.5 rounded-xl border border-violet-500/40">
-                        <i class="fa-solid fa-gem text-xl" style="color:#22d3ee;text-shadow:0 0 14px #a78bfa"></i>
+                        <i class="fa-solid fa-signal text-lg" style="color:var(--accent)"></i>
                     </div>
                     <div>
-                        <h1 class="anka text-2xl font-black tracking-widest inline-block">ANKA SMS</h1><span class="vipBadge">VIP</span>
-                        <p class="text-[10px] text-violet-300/60 font-mono">GÜVENLİ SANAL NUMARA SİSTEMİ</p>
+                        <h1 class="anka text-xl font-bold tracking-tight inline-block">Anka SMS</h1>
+                        <p class="text-[11px] text-violet-300/60">Sanal numara ve SMS doğrulama</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-2 sm:gap-4 flex-wrap justify-end">
-                    <div id="contactCapsule" style="display:flex;align-items:center;gap:6px;background:rgba(167,139,250,.08);border:1px solid rgba(167,139,250,.3);border-radius:999px;padding:5px 10px">
-                        <a href="https://wa.me/573181006792" target="_blank" title="WhatsApp" style="color:#a78bfa;font-size:15px;line-height:0"><i class="fa-brands fa-whatsapp"></i></a>
+                    <div id="contactCapsule" style="display:flex;align-items:center;gap:6px;background:rgba(232,163,61,.08);border:1px solid rgba(232,163,61,.3);border-radius:999px;padding:5px 10px">
+                        <a href="https://wa.me/573181006792" target="_blank" title="WhatsApp Destek" style="color:var(--accent);font-size:15px;line-height:0"><i class="fa-brands fa-whatsapp"></i></a>
                     </div>
                     <div id="userArea" class="flex items-center gap-2 sm:gap-4 flex-wrap justify-end"></div>
                 </div>
             </header>
             <main id="mainContent"></main>
-            <p style="text-align:center;color:rgba(167,139,250,.25);font-size:10px;font-family:monospace;margin-top:30px">sürüm: ${APP_VERSION}</p>
+            <p style="text-align:center;color:var(--text-muted);opacity:.5;font-size:10px;font-family:monospace;margin-top:30px">sürüm: ${APP_VERSION}</p>
         </div>
+</div>
 
         <div id="authModal" class="fixed inset-0 bg-black/85 flex items-center justify-center hidden z-50" onclick="if(event.target===this) closeAuthModal()">
             <div class="glassCard p-8 rounded-3xl w-full max-w-md relative shadow-2xl" onclick="event.stopPropagation()">
@@ -1580,80 +1524,6 @@ app.get('/', (req, res) => {
             var adminToken = localStorage.getItem('adminToken') || null;
             var isRegisterMode = false;
             var orderTimers = {};
-            var phoenixCount = 0;
-
-            (function () {
-                // Altin/yesil kivilcim parcaciklari (ust katman, hafif)
-                var c = document.getElementById('emberCanvas');
-                var ctx = c.getContext('2d');
-                var parts = [];
-                function resize() { c.width = window.innerWidth; c.height = window.innerHeight; }
-                resize();
-                window.addEventListener('resize', resize);
-                function spawn() {
-                    if (parts.length > 90) return;
-                    parts.push({ x: Math.random() * c.width, y: c.height + 10, r: 1 + Math.random() * 2.2, vy: .4 + Math.random() * .9, vx: (Math.random() - .5) * .5, a: 0, life: 0, max: 160 + Math.random() * 160, hue: Math.random() > .5 ? '74,222,128' : '250,204,21' });
-                }
-                setInterval(spawn, 140);
-                function tick() {
-                    ctx.clearRect(0, 0, c.width, c.height);
-                    for (var i = parts.length - 1; i >= 0; i--) {
-                        var p = parts[i];
-                        p.life++; p.y -= p.vy; p.x += p.vx + Math.sin(p.life * .05) * .3;
-                        p.a = Math.sin((p.life / p.max) * Math.PI);
-                        ctx.beginPath(); ctx.fillStyle = 'rgba(' + p.hue + ',' + (p.a * .8) + ')'; ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fill();
-                        if (p.life > p.max) parts.splice(i, 1);
-                    }
-                    requestAnimationFrame(tick);
-                }
-                tick();
-            })();
-
-            function phoenixHTML() {
-                var t = document.getElementById('phoenixTpl');
-                if (!t) return '';
-                phoenixCount++;
-                return t.innerHTML.replace(/(gBody|gWingR|gWingL|eGlow)/g, '$1_' + phoenixCount);
-            }
-
-            var introClosed = false;
-            function closeIntro() {
-                if (introClosed) return;
-                introClosed = true;
-                var o = document.getElementById('intro');
-                if (!o) return;
-                o.style.opacity = '0';
-                setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 900);
-            }
-            function runIntro() {
-                var ip = document.getElementById('introPhoenix');
-                if (ip) ip.innerHTML = phoenixHTML();
-                var lines = ['> sistem başlatılıyor...', '> şifreli bağlantı kuruluyor (AES-256)...', '> sunucu doğrulandı [OK]', '> anka küllerinden doğuyor...', '> erişim sağlandı'];
-                var log = document.getElementById('introLog');
-                var bar = document.getElementById('introBar');
-                var ping = document.getElementById('introPing');
-                lines.forEach(function (t, i) {
-                    setTimeout(function () {
-                        if (introClosed) return;
-                        var d = document.createElement('div'); d.textContent = t; log.appendChild(d);
-                        bar.style.width = ((i + 1) * 20) + '%';
-                        if (i === 2 && ping) { ping.classList.remove('go'); void ping.offsetWidth; ping.classList.add('go'); }
-                        if (i === lines.length - 1) {
-                            var stage = document.getElementById('intro');
-                            if (stage) { stage.style.transition = 'transform .25s ease, opacity .9s ease'; stage.style.transform = 'scale(1.015)'; setTimeout(function () { if (stage) stage.style.transform = 'scale(1)'; }, 180); }
-                        }
-                    }, 450 + i * 620);
-                });
-                setTimeout(function () { closeIntro(); }, 3900);
-            }
-            if (sessionStorage.getItem('introDone')) {
-                var introEl = document.getElementById('intro');
-                if (introEl) introEl.parentNode.removeChild(introEl);
-                introClosed = true;
-            } else {
-                runIntro();
-                sessionStorage.setItem('introDone', '1');
-            }
 
             function init() {
                 updateUserArea();
@@ -1663,6 +1533,7 @@ app.get('/', (req, res) => {
                     loadSmmServices();
                     loadManualServices();
                     restoreOrders();
+                    loadRecentOrders();
                 }
             }
 
@@ -1683,12 +1554,11 @@ app.get('/', (req, res) => {
                         '<button onclick="openAuthModal(\\'login\\')" class="bg-violet-600 hover:bg-violet-500 px-5 py-2.5 rounded-xl text-sm font-bold">Giriş Yap</button>' +
                         '<button onclick="openAuthModal(\\'register\\')" class="bg-black/40 border border-violet-500/30 px-5 py-2.5 rounded-xl text-sm font-bold">Kayıt Ol</button>';
                     document.getElementById('mainContent').innerHTML =
-                        '<div class="text-center py-16 glassCard vipCard rounded-3xl p-8 fadeUp">' +
-                        '<div class="phoenixWrap">' + phoenixHTML() + '</div>' +
-                        '<div class="mb-3 mt-2"><span class="vipBadge">VIP ÜYELİK PANELİ</span></div>' +
-                        '<h2 class="anka text-5xl md:text-6xl font-black mb-4 font-mono tracking-widest">ANKA SMS</h2>' +
-                        '<p class="text-violet-200/70 font-mono mb-8">Anlık sanal numara &bull; Hızlı SMS kodu &bull; 7/24 aktif<span class="blink">_</span></p>' +
-                        '<div class="flex gap-3 justify-center"><button onclick="openAuthModal(\\'login\\')" class="bg-violet-600 hover:bg-violet-500 px-8 py-3 rounded-xl font-bold">Giriş Yap</button>' +
+                        '<div class="text-center py-14 glassCard rounded-3xl p-8 fadeUp">' +
+                        '<div class="mx-auto mb-5 flex items-center justify-center" style="width:64px;height:64px;border-radius:18px;background:var(--surface-2);border:1px solid var(--border)"><i class="fa-solid fa-signal text-2xl" style="color:var(--accent)"></i></div>' +
+                        '<h2 class="anka text-3xl md:text-4xl font-bold mb-3">Anka SMS</h2>' +
+                        '<p class="text-violet-200/70 mb-8 max-w-sm mx-auto">WhatsApp, Telegram ve daha fazlası için anında sanal numara. Satın al, kodu al, kullan.</p>' +
+                        '<div class="flex gap-3 justify-center flex-wrap"><button onclick="openAuthModal(\\'login\\')" class="bg-violet-600 hover:bg-violet-500 px-8 py-3 rounded-xl font-bold">Giriş Yap</button>' +
                         '<button onclick="openAuthModal(\\'register\\')" class="bg-black/40 border border-violet-500/40 hover:bg-violet-900/30 px-8 py-3 rounded-xl font-bold text-violet-300">Kayıt Ol</button></div>' +
                         '<p class="text-violet-200/40 text-xs mt-6">Destek: WhatsApp <a href="https://wa.me/573181006792" target="_blank" class="text-violet-400 underline">+57 318 100 6792</a></p>' +
                         '</div>';
@@ -1705,24 +1575,137 @@ app.get('/', (req, res) => {
 
             function buildMain() {
                 document.getElementById('mainContent').innerHTML =
+                    '<div id="navTabs" class="flex gap-1 mb-6" style="border-bottom:1px solid var(--border)">' +
+                    '<button onclick="switchPanel(\'home\')" id="navHomeBtn" class="tabBtn active px-4 py-2.5 text-sm font-semibold">Ana Sayfa</button>' +
+                    '<button onclick="switchPanel(\'orders\')" id="navOrdersBtn" class="tabBtn px-4 py-2.5 text-sm font-semibold">Siparişlerim</button>' +
+                    '</div>' +
+                    '<div id="homePanel">' +
+                    '<div class="glassCard rounded-2xl p-5 mb-7 flex items-center justify-between flex-wrap gap-4">' +
+                    '<div><p class="text-xs text-slate-400 mb-1">Bakiyeniz</p><p id="homeBalance" class="text-3xl font-bold anka">0.00 TL</p></div>' +
+                    '<button onclick="openDeposit()" class="btnAccent px-5 py-2.5 rounded-xl text-sm"><i class="fa-solid fa-circle-plus mr-2"></i>Bakiye Yükle</button>' +
+                    '</div>' +
                     '<div id="activeOrderWrap" class="mb-8">' +
-                    '<div id="activeOrderHeading" class="items-center gap-2 mb-3" style="display:none;"><i class="fa-solid fa-signal text-violet-400"></i><h3 class="font-black text-lg tracking-wide">Aktif Numaralarım</h3></div>' +
+                    '<div id="activeOrderHeading" class="items-center gap-2 mb-3" style="display:none;"><i class="fa-solid fa-signal" style="color:var(--accent)"></i><h3 class="font-bold text-lg">Aktif Numaralarım</h3></div>' +
                     '<div id="activeOrderArea"></div>' +
                     '</div>' +
-                    '<div id="featuredWrap" class="mb-8" style="display:none;">' +
-                    '<div class="flex items-center gap-2 mb-3"><i class="fa-solid fa-star text-amber-400"></i><h3 class="font-black text-lg tracking-wide">Öne Çıkan Numaralar</h3></div>' +
+                    '<div id="featuredWrap" class="mb-7" style="display:none;">' +
+                    '<div class="flex items-center gap-2 mb-3"><i class="fa-solid fa-star" style="color:var(--accent)"></i><h3 class="font-bold text-lg">Popüler Servisler</h3></div>' +
                     '<div id="featuredGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>' +
                     '</div>' +
+                    '<div class="mb-5">' +
+                    '<div id="groupTabs" class="flex gap-1 overflow-x-auto mb-3" style="scrollbar-width:none"></div>' +
+                    '<div id="countryChips" class="flex gap-2 overflow-x-auto" style="scrollbar-width:none"></div>' +
+                    '</div>' +
                     '<div id="servicesGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"><p class="text-slate-400 text-sm">Yükleniyor...</p></div>' +
-                    '<div class="mt-6 flex justify-end"><button onclick="openDeposit()" class="bg-violet-600 hover:bg-violet-500 px-6 py-3 rounded-xl font-bold text-sm"><i class="fa-solid fa-wallet mr-2"></i> Bakiye Yükle</button></div>' +
                     '<div class="mt-8">' +
-                    '<button onclick="toggleOtherPlatforms()" class="w-full text-left bg-black/40 border border-violet-500/15 p-4 rounded-2xl flex items-center justify-between"><span class="font-bold text-sm"><i class="fa-solid fa-globe mr-2 text-violet-400"></i>Diğer SMS Platformları (Trendyol ve tüm Türkiye servisleri)</span><i id="otherPlatformsChevron" class="fa-solid fa-chevron-down"></i></button>' +
+                    '<button onclick="toggleOtherPlatforms()" class="w-full text-left bg-black/40 border border-violet-500/15 p-4 rounded-2xl flex items-center justify-between"><span class="font-bold text-sm"><i class="fa-solid fa-globe mr-2" style="color:var(--accent)"></i>Diğer SMS Platformları (Trendyol ve tüm Türkiye servisleri)</span><i id="otherPlatformsChevron" class="fa-solid fa-chevron-down"></i></button>' +
                     '<div id="otherPlatformsBody" class="mt-3" style="display:none;">' +
                     '<input id="otherPlatformsSearch" oninput="filterOtherPlatforms()" placeholder="Servis ara (örn: Trendyol)" class="w-full bg-black/40 border border-violet-500/20 rounded-xl p-3 text-white text-sm mb-3">' +
                     '<div id="otherPlatformsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-4"><p class="text-slate-400 text-sm">Yükleniyor...</p></div>' +
                     '</div></div>' +
                     '<div id="smmSection" class="mt-8"></div>' +
-                    '<div id="manualSection" class="mt-8"></div>';
+                    '<div id="manualSection" class="mt-8"></div>' +
+                    '<div class="mt-10">' +
+                    '<div class="flex items-center justify-between mb-3"><h3 class="font-bold text-lg">Son Siparişler</h3><button onclick="switchPanel(\'orders\')" class="text-xs font-semibold" style="color:var(--accent)">Tümünü gör</button></div>' +
+                    '<div id="recentOrdersArea"><p class="text-slate-400 text-sm">Yükleniyor...</p></div>' +
+                    '</div>' +
+                    '<div class="mt-10 mb-4 glassCard rounded-2xl p-5 flex items-center justify-between flex-wrap gap-4">' +
+                    '<div class="flex items-center gap-3"><div class="prodIcon w-11 h-11 rounded-xl flex items-center justify-center text-lg shrink-0"><i class="fa-brands fa-whatsapp"></i></div><div><h3 class="font-bold text-sm">Yardıma mı ihtiyacınız var?</h3><p class="text-xs text-slate-400">Sorularınız için WhatsApp üzerinden bize ulaşın.</p></div></div>' +
+                    '<a href="https://wa.me/573181006792" target="_blank" class="bg-black/40 border border-violet-500/20 px-5 py-2.5 rounded-xl text-sm font-semibold">WhatsApp\'tan Yaz</a>' +
+                    '</div>' +
+                    '</div>' +
+                    '<div id="ordersPanel" style="display:none"></div>';
+            }
+
+            function switchPanel(name) {
+                var home = document.getElementById('homePanel');
+                var orders = document.getElementById('ordersPanel');
+                var hb = document.getElementById('navHomeBtn');
+                var ob = document.getElementById('navOrdersBtn');
+                if (home) home.style.display = name === 'home' ? 'block' : 'none';
+                if (orders) orders.style.display = name === 'orders' ? 'block' : 'none';
+                if (hb) hb.className = 'tabBtn' + (name === 'home' ? ' active' : '') + ' px-4 py-2.5 text-sm font-semibold';
+                if (ob) ob.className = 'tabBtn' + (name === 'orders' ? ' active' : '') + ' px-4 py-2.5 text-sm font-semibold';
+                if (name === 'orders') loadOrdersTab();
+            }
+
+            // ====== Kategori (servis tipi) ve ülke filtreleri ======
+            var allServicesData = [];
+            var activeGroup = 'all';
+            var activeCountry = 'all';
+            var GROUP_LABELS = { all: 'Tümü', wa: 'WhatsApp', tg: 'Telegram', ds: 'Discord', other: 'Diğer' };
+            var COUNTRY_LABELS = { tr: 'Türkiye', co: 'Kolombiya', us: 'Amerika', gb: 'İngiltere', sg: 'Singapur', sy: 'Suriye', random: 'Anonim/Rastgele' };
+            function buildFilterChips() {
+                var groups = {}, countries = {};
+                allServicesData.forEach(function (s) { if (s.group) groups[s.group] = true; if (s.country) countries[s.country] = true; });
+                var groupOrder = ['all', 'wa', 'tg', 'ds', 'other'];
+                var gWrap = document.getElementById('groupTabs');
+                if (gWrap) {
+                    gWrap.innerHTML = groupOrder.filter(function (g) { return g === 'all' || groups[g]; }).map(function (g) {
+                        return '<button onclick="setGroupFilter(\\'' + g + '\\')" class="tabBtn' + (activeGroup === g ? ' active' : '') + ' px-3 py-2 text-sm font-semibold shrink-0">' + GROUP_LABELS[g] + '</button>';
+                    }).join('');
+                }
+                var cWrap = document.getElementById('countryChips');
+                if (cWrap) {
+                    var list = Object.keys(countries);
+                    cWrap.innerHTML = (list.length > 1 ? '<button onclick="setCountryFilter(\\'all\\')" class="chip' + (activeCountry === 'all' ? ' active' : '') + ' px-3 py-1.5 rounded-full text-xs shrink-0">Tüm ülkeler</button>' : '') +
+                        list.map(function (c) {
+                            return '<button onclick="setCountryFilter(\\'' + c + '\\')" class="chip' + (activeCountry === c ? ' active' : '') + ' px-3 py-1.5 rounded-full text-xs shrink-0">' + (COUNTRY_LABELS[c] || c) + '</button>';
+                        }).join('');
+                }
+            }
+            function setGroupFilter(g) { activeGroup = g; buildFilterChips(); renderFilteredServices(); }
+            function setCountryFilter(c) { activeCountry = c; buildFilterChips(); renderFilteredServices(); }
+            function renderFilteredServices() {
+                var grid = document.getElementById('servicesGrid');
+                if (!grid) return;
+                var list = allServicesData.filter(function (s) {
+                    if (s.featured) return false;
+                    if (activeGroup !== 'all' && s.group !== activeGroup) return false;
+                    if (activeCountry !== 'all' && s.country !== activeCountry) return false;
+                    return true;
+                });
+                if (!list.length) { grid.innerHTML = '<p class="text-slate-400 text-sm">Bu filtreyle eşleşen servis yok.</p>'; return; }
+                grid.innerHTML = list.map(function (s) { return renderServiceCard(s, false); }).join('');
+            }
+
+            // ====== Siparişlerim sekmesi ve "Son Siparişler" ======
+            var STATUS_LABELS = { waiting: ['Bekleniyor', '#E8A33D'], completed: ['Tamamlandı', '#3DBD82'], cancelled: ['İptal Edildi', '#8B93A3'], expired: ['Süresi Doldu', '#8B93A3'] };
+            function orderRowHTML(o) {
+                var st = STATUS_LABELS[o.status] || [o.status, '#8B93A3'];
+                return '<div class="glassCard rounded-2xl p-4 mb-3">' +
+                    '<div class="flex items-center justify-between gap-3 flex-wrap">' +
+                    '<div class="min-w-0"><h3 class="font-bold text-sm truncate">' + o.productName + '</h3>' +
+                    '<p class="text-xs text-slate-400 font-mono">' + (o.phoneNumber || '-') + '</p></div>' +
+                    '<span class="text-[11px] font-bold px-2.5 py-1 rounded-full shrink-0" style="background:' + st[1] + '22;color:' + st[1] + '">' + st[0] + '</span>' +
+                    '</div>' +
+                    '<div class="flex items-center justify-between mt-3 text-xs text-slate-400">' +
+                    '<span>' + (o.time || '') + '</span>' +
+                    '<span class="font-bold" style="color:var(--text)">' + (o.price != null ? Number(o.price).toFixed(2) + ' TL' : '') + '</span>' +
+                    '</div>' +
+                    (o.code && o.code !== 'Bekleniyor...' ? '<div class="mt-2 bg-black/40 rounded-lg px-3 py-2 text-xs"><span class="text-slate-400">Kod: </span><span class="font-mono font-bold">' + o.code + '</span></div>' : '') +
+                    '</div>';
+            }
+            async function loadOrdersTab() {
+                var box = document.getElementById('ordersPanel');
+                if (!box || !currentUser) return;
+                box.innerHTML = '<p class="text-slate-400 text-sm">Yükleniyor...</p>';
+                try {
+                    var res = await fetch('/api/myAllOrders?username=' + encodeURIComponent(currentUser));
+                    var data = await res.json();
+                    if (!data.success || !data.orders.length) { box.innerHTML = '<div class="glassCard rounded-2xl p-8 text-center"><p class="text-slate-400 text-sm">Henüz siparişiniz yok.</p></div>'; return; }
+                    box.innerHTML = data.orders.map(orderRowHTML).join('');
+                } catch (e) { box.innerHTML = '<p class="text-slate-400 text-sm">Yüklenemedi.</p>'; }
+            }
+            async function loadRecentOrders() {
+                var box = document.getElementById('recentOrdersArea');
+                if (!box || !currentUser) return;
+                try {
+                    var res = await fetch('/api/myAllOrders?username=' + encodeURIComponent(currentUser));
+                    var data = await res.json();
+                    if (!data.success || !data.orders.length) { box.innerHTML = '<p class="text-slate-400 text-sm">Henüz siparişiniz yok.</p>'; return; }
+                    box.innerHTML = data.orders.slice(0, 3).map(orderRowHTML).join('');
+                } catch (e) { box.innerHTML = ''; }
             }
 
             var otherPlatformsLoaded = false;
@@ -2218,8 +2201,6 @@ app.get('/', (req, res) => {
                     '<div><h3 class="font-bold mb-2 text-violet-300"><i class="fa-solid fa-plus mr-1"></i> Ürün Yönetimi (elle ürün ekle/sil)</h3>' + catalogMgmtHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-violet-300"><i class="fa-solid fa-globe mr-1"></i> Diğer SMS Platformları - Kâr Çarpanı</h3>' + otherPlatformsAdminHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-violet-300"><i class="fa-solid fa-pen mr-1"></i> Sipariş - Elle Kod Gir / Elle Sipariş Oluştur</h3>' + manualOrderHtml + '</div>' +
-                    '<div><h3 class="font-bold mb-2 text-pink-300"><i class="fa-brands fa-instagram mr-1"></i> Instagram / SMM Servis Ayarları</h3>' + smmConfigHtml + '</div>' +
-                    '<div><h3 class="font-bold mb-2 text-pink-300"><i class="fa-solid fa-list-check mr-1"></i> SMM Siparişleri</h3>' + smmOrdersHtml + '</div>' +
                     '<div><h3 class="font-bold mb-2 text-violet-300"><i class="fa-solid fa-stethoscope mr-1"></i> Sağlayıcı Teşhis (neden numara alınamıyor?)</h3>' +
                     '<div class="flex flex-wrap gap-2 items-center mb-2">' +
                     '<select id="diagProduct" class="bg-black/40 border border-violet-500/20 rounded px-2 py-1 text-xs text-white">' + (data.catalog || []).map(function (c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join('') + '</select>' +
